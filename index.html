@@ -53,6 +53,8 @@ nav button{background:none;border:0;color:inherit;font-size:10px;display:grid;ga
 <div class="card" id="trendPanel">
  <div class="meta">Menganalisis produk...</div>
 </div>
+<div class="section-head"><h3>Campaign Analytics</h3><span class="muted">Prestasi semua kempen</span></div>
+<div class="card" id="campaignAnalytics"><div class="stats" style="margin:0"><div class="stat"><span>Total views</span><b id="caViews">0</b></div><div class="stat"><span>Total clicks</span><b id="caClicks">0</b></div><div class="stat"><span>Total orders</span><b id="caOrders">0</b></div><div class="stat"><span>Komisen direkod</span><b id="caCommission">RM 0.00</b></div></div><div class="meta" id="caRates" style="margin-top:10px">CTR: 0.00% · Conversion: 0.00%</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px"><button class="primary" onclick="exportCampaigns()" style="padding:11px">⬇ Backup JSON</button><button class="chip" onclick="document.getElementById('campaignImportFile').click()">⬆ Import Backup</button></div><input id="campaignImportFile" type="file" accept=".json,application/json" onchange="importCampaigns()" hidden><div class="meta" style="margin-top:8px">Data kempen disimpan dalam browser/peranti ini. Backup JSON untuk pindahkan ke peranti lain.</div></div>
 <div class="section-head"><h3>Product Hunter</h3><span class="muted">Data daripada database anda</span></div>
 <div class="search"><input id="q" placeholder="Cari produk..." aria-label="Cari produk"><button onclick="render()">Cari</button></div>
 <div class="chips"><button class="chip active" data-cat="Semua">Semua</button><button class="chip" data-cat="Home & Living">Home & Living</button><button class="chip" data-cat="Kitchen">Kitchen</button><button class="chip" data-cat="Elektronik">Elektronik</button><button class="chip" data-cat="Automotif">Automotif</button></div>
@@ -116,7 +118,7 @@ async function importCSV(){
    try{const res=await fetch(API_BASE+'/api/products',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const data=await res.json();if(res.ok&&data.ok)added++;else errors++}catch(e){errors++}
   }
   status.textContent='Selesai: '+added+' ditambah, '+skipped+' dilangkau, '+errors+' gagal.';
-  toast('Import selesai: '+added+' produk');await loadProducts();
+  toast('Import selesai: '+added+' produk');await refreshCampaignAnalytics();\nloadProducts();
  }catch(e){status.textContent='Ralat: '+e.message;toast('Import gagal: '+e.message)}
 }
 async function addProduct(){
@@ -149,6 +151,28 @@ async function copyMarketingKit(id){
 }
 let campaignData={};
 try{campaignData=JSON.parse(localStorage.getItem('ah_campaigns')||'{}')||{}}catch(e){campaignData={}}
+function refreshCampaignAnalytics(){
+ const values=Object.values(campaignData||{});
+ const sum=k=>values.reduce((n,d)=>n+(Math.max(0,Number(d[k])||0)),0);
+ const views=sum('views'),clicks=sum('clicks'),orders=sum('orders'),commission=sum('commission');
+ const put=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v};
+ put('caViews',views.toLocaleString());put('caClicks',clicks.toLocaleString());put('caOrders',orders.toLocaleString());put('caCommission','RM '+commission.toFixed(2));
+ put('caRates','CTR: '+(views?clicks/views*100:0).toFixed(2)+'% · Conversion: '+(clicks?orders/clicks*100:0).toFixed(2)+'%');
+}
+function exportCampaigns(){
+ const payload={app:'Affiliate Hunter AI',type:'campaign-backup',version:1,exported_at:new Date().toISOString(),campaigns:campaignData};
+ const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+ const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='affiliate-hunter-campaigns.json';a.click();URL.revokeObjectURL(url);toast('Backup kempen dimuat turun.');
+}
+async function importCampaigns(){
+ const input=document.getElementById('campaignImportFile'),file=input.files&&input.files[0];if(!file)return;
+ try{
+  const parsed=JSON.parse(await file.text()),incoming=parsed.campaigns;
+  if(!incoming||typeof incoming!=='object'||Array.isArray(incoming))throw new Error('Format backup tidak sah.');
+  if(!confirm('Import backup kempen? Rekod dengan ID sama akan digantikan.')){input.value='';return}
+  campaignData={...campaignData,...incoming};localStorage.setItem('ah_campaigns',JSON.stringify(campaignData));refreshCampaignAnalytics();toast('Backup berjaya diimport.');
+ }catch(e){toast('Import gagal: '+e.message)}finally{input.value=''}
+}
 function campaignFor(id){return campaignData[id]||{status:'Idea',post_date:'',views:0,clicks:0,orders:0,commission:0}}
 function showCampaign(id){
  const p=products.find(x=>x.id===id);if(!p)return;
@@ -163,7 +187,7 @@ function saveCampaign(id){
  localStorage.setItem('ah_campaigns',JSON.stringify(campaignData));
  const d=campaignData[id],ctr=d.views?d.clicks/d.views*100:0,conv=d.clicks?d.orders/d.clicks*100:0;
  document.getElementById('cresult-'+id).textContent='CTR: '+ctr.toFixed(2)+'% · Conversion: '+conv.toFixed(2)+'% · Komisen: RM '+d.commission.toFixed(2);
- toast('Prestasi kempen disimpan pada telefon ini.');
+ refreshCampaignAnalytics();toast('Prestasi kempen disimpan pada telefon ini.');
 }
 async function copyPrompt(id){let p=products.find(x=>x.id===id);try{await navigator.clipboard.writeText(promptFor(p));toast('Prompt disalin!')}catch(e){toast('Clipboard tidak tersedia pada browser ini.')}}
 function downloadImage(id){let p=products.find(x=>x.id===id);if(!p.image_url){toast('Produk ini belum ada URL gambar.');return}window.open(p.image_url,'_blank','noopener');toast('Imej dibuka. Simpan melalui browser jika tersedia.')}
