@@ -39,6 +39,7 @@ nav button{background:none;border:0;color:inherit;font-size:10px;display:grid;ga
   </div>
   <input id="newImage" placeholder="URL gambar produk (pilihan)" style="width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;margin-top:8px">
   <input id="newLink" placeholder="URL produk Shopee (pilihan)" style="width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;margin-top:8px">
+  <button class="chip" onclick="fetchNewProductImage()" style="width:100%;margin-top:7px;padding:11px">🖼 Dapatkan gambar daripada URL Shopee</button><div class="meta" id="newImageStatus" aria-live="polite"></div>
   <button class="primary" onclick="addProduct()" style="width:100%;padding:13px;margin-top:10px">＋ Simpan Produk</button>
 </div>
 <div class="section-head"><h3>Import Product Feed</h3><span class="muted">CSV daripada sumber dibenarkan</span></div>
@@ -154,6 +155,35 @@ async function importCSV(){
   status.textContent="Selesai: "+added+" ditambah, "+skipped+" dilangkau, "+errors+" gagal.";
   toast("Import selesai: "+added+" produk");await loadProducts();
  }catch(e){status.textContent="Ralat: "+e.message;toast("Import gagal: "+e.message)}
+}
+async function fetchShopeeImage(url){
+ const res=await fetch(API_BASE+"/api/product-image?url="+encodeURIComponent(url));
+ const data=await res.json();
+ if(!res.ok||!data.ok)throw new Error(data.error||"Gagal mendapatkan gambar");
+ return data;
+}
+async function fetchNewProductImage(){
+ const url=document.getElementById("newLink").value.trim(),status=document.getElementById("newImageStatus");
+ if(!url){toast("Masukkan URL produk Shopee dahulu.");return}
+ status.textContent="Sedang mendapatkan gambar daripada halaman Shopee...";
+ try{
+  const data=await fetchShopeeImage(url);
+  document.getElementById("newImage").value=data.image_url;
+  if(data.title&&!document.getElementById("newName").value.trim())document.getElementById("newName").value=data.title.replace(/\\s*[-|·].*$/,"").trim();
+  status.textContent="Gambar ditemui. Semak dahulu sebelum simpan produk.";
+  toast("URL gambar berjaya diperoleh.");
+ }catch(e){status.textContent=e.message;toast(e.message)}
+}
+async function fetchProductImage(id){
+ const p=products.find(x=>x.id===id);if(!p)return;
+ if(!p.product_url){toast("Produk ini tiada URL Shopee.");return}
+ toast("Sedang mendapatkan gambar...");
+ try{
+  const data=await fetchShopeeImage(p.product_url);
+  const res=await fetch(API_BASE+"/api/products/"+id,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({image_url:data.image_url})});
+  const saved=await res.json();if(!res.ok||!saved.ok)throw new Error(saved.error||"Gagal menyimpan gambar");
+  toast("Gambar produk berjaya disimpan.");await loadProducts();
+ }catch(e){toast(e.message)}
 }
 async function addProduct(){
  const name=document.getElementById('newName').value.trim();
@@ -319,7 +349,7 @@ function render(){
   return opportunity(b).score-opportunity(a).score;
  });
  document.getElementById('total').textContent=products.length;document.getElementById('prompts').textContent=products.length;
- document.getElementById('list').innerHTML=rows.length?rows.map(p=>'<article class="card"><div class="product"><img src="'+(p.image_url||'https://placehold.co/300x300?text=No+Image')+'" alt="Gambar '+p.name+'" onerror="this.src=\'https://placehold.co/300x300?text=No+Image\'"><div><div class="name">'+p.name+' <span class="score">'+opportunity(p).score+'/100</span></div><div class="meta">'+(p.category||'Other')+' · ID '+p.id+' · Data '+opportunity(p).completeness+'/4</div><div class="price">'+(p.price==null?'Harga belum diisi':'RM '+Number(p.price).toFixed(2))+'</div><span class="commission">'+(p.commission_rate==null?'Komisen belum diisi':Number(p.commission_rate)+'% komisen')+'</span><div class="meta">Rating: '+(p.rating??'—')+' · Terjual: '+(p.sold_count??'—')+'</div></div></div><div class="actions"><button onclick="downloadImage('+p.id+')">⬇ Gambar</button><button onclick="copyPrompt('+p.id+')">▤ Prompt</button><button onclick="openSearch('+p.id+')">↗ Shopee</button></div><button onclick="showMarketingKit('+p.id+')" style="margin-top:8px;width:100%;padding:10px;border:1px solid #dcd3fa;background:#f5f1ff;color:#4e2ab4;border-radius:9px;font-weight:750">✦ Jana Marketing Kit</button><div class="marketing-kit" id="kit-'+p.id+'" hidden></div><button onclick="showCampaign('+p.id+')" style="margin-top:8px;width:100%;padding:10px;border:1px solid #dcd3fa;background:#f5f1ff;color:#4e2ab4;border-radius:9px;font-weight:750">📈 Campaign Tracker</button><div class="campaign-box" id="campaign-'+p.id+'" hidden></div><button onclick="deleteProduct('+p.id+')" style="margin-top:8px;width:100%;padding:8px;border:1px solid #f2caca;background:#fff7f7;color:#b22;border-radius:9px">Padam produk</button></article>').join(''):'<div class="empty">Belum ada produk. Tambah produk di atas.</div>';
+ document.getElementById('list').innerHTML=rows.length?rows.map(p=>'<article class="card"><div class="product"><img src="'+(p.image_url||'https://placehold.co/300x300?text=No+Image')+'" alt="Gambar '+p.name+'" onerror="this.src=\'https://placehold.co/300x300?text=No+Image\'"><div><div class="name">'+p.name+' <span class="score">'+opportunity(p).score+'/100</span></div><div class="meta">'+(p.category||'Other')+' · ID '+p.id+' · Data '+opportunity(p).completeness+'/4</div><div class="price">'+(p.price==null?'Harga belum diisi':'RM '+Number(p.price).toFixed(2))+'</div><span class="commission">'+(p.commission_rate==null?'Komisen belum diisi':Number(p.commission_rate)+'% komisen')+'</span><div class="meta">Rating: '+(p.rating??'—')+' · Terjual: '+(p.sold_count??'—')+'</div></div></div><div class="actions"><button onclick="downloadImage('+p.id+')">⬇ Gambar</button><button onclick="copyPrompt('+p.id+')">▤ Prompt</button><button onclick="openSearch('+p.id+')">↗ Shopee</button></div><button onclick="fetchProductImage('+p.id+')" style="margin-top:8px;width:100%;padding:10px;border:1px solid #dcd3fa;background:#faf8ff;color:#4e2ab4;border-radius:9px;font-weight:750">🖼 Dapatkan gambar daripada URL Shopee</button><button onclick="showMarketingKit('+p.id+')" style="margin-top:8px;width:100%;padding:10px;border:1px solid #dcd3fa;background:#f5f1ff;color:#4e2ab4;border-radius:9px;font-weight:750">✦ Jana Marketing Kit</button><div class="marketing-kit" id="kit-'+p.id+'" hidden></div><button onclick="showCampaign('+p.id+')" style="margin-top:8px;width:100%;padding:10px;border:1px solid #dcd3fa;background:#f5f1ff;color:#4e2ab4;border-radius:9px;font-weight:750">📈 Campaign Tracker</button><div class="campaign-box" id="campaign-'+p.id+'" hidden></div><button onclick="deleteProduct('+p.id+')" style="margin-top:8px;width:100%;padding:8px;border:1px solid #f2caca;background:#fff7f7;color:#b22;border-radius:9px">Padam produk</button></article>').join(''):'<div class="empty">Belum ada produk. Tambah produk di atas.</div>';
 }
 document.querySelectorAll('.chip').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('.chip').forEach(x=>x.classList.remove('active'));b.classList.add('active');category=b.dataset.cat;render()}));
 function showPage(pageId){document.querySelectorAll(".page").forEach(p=>p.classList.toggle("active",p.id===pageId));document.querySelectorAll("#bottomNav button").forEach(b=>b.classList.toggle("active",b.dataset.page===pageId));window.scrollTo({top:0,behavior:"smooth"});}document.querySelectorAll("#bottomNav button").forEach(btn=>btn.addEventListener("click",()=>showPage(btn.dataset.page)));
