@@ -22,7 +22,7 @@ export default {
         const region = String(body.region || "MY").toUpperCase();
         if (!["MY","ID","SG","TH","PH","VN","US","GB"].includes(region)) return json({ok:false,error:"Unsupported region"},400);
         const dateValue = String(body.date || "");
-        if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(dateValue)) return json({ok:false,error:"Date must use YYYY-MM-DD"},400);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) return json({ok:false,error:"Date must use YYYY-MM-DD"},400);
         const page = Math.min(Math.max(Number(body.page)||1,1),5);
         const pagesize = Math.min(Math.max(Number(body.pagesize)||20,1),50);
         const upstream = await fetch("https://openapi.fastmoss.com/product/v1/rank/topSelling", {
