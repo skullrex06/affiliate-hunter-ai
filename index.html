@@ -57,6 +57,27 @@ nav button{background:none;border:0;color:inherit;font-size:10px;display:grid;ga
 <div class="card" id="campaignAnalytics"><div class="stats" style="margin:0"><div class="stat"><span>Total views</span><b id="caViews">0</b></div><div class="stat"><span>Total clicks</span><b id="caClicks">0</b></div><div class="stat"><span>Total orders</span><b id="caOrders">0</b></div><div class="stat"><span>Komisen direkod</span><b id="caCommission">RM 0.00</b></div></div><div class="meta" id="caRates" style="margin-top:10px">CTR: 0.00% · Conversion: 0.00%</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px"><button class="primary" onclick="exportCampaigns()" style="padding:11px">⬇ Backup JSON</button><button class="chip" onclick="document.getElementById('campaignImportFile').click()">⬆ Import Backup</button></div><input id="campaignImportFile" type="file" accept=".json,application/json" onchange="importCampaigns()" hidden><div class="meta" style="margin-top:8px">Data kempen disimpan dalam browser/peranti ini. Backup JSON untuk pindahkan ke peranti lain.</div></div>
 <div class="section-head"><h3>AI Content Calendar</h3><span class="muted">Rancangan 7 hari</span></div>
 <div class="card" id="contentCalendar"><div class="meta">Menjana jadual kandungan...</div></div>
+<div class="section-head"><h3>Shopee Affiliate Link Manager</h3><span class="muted">Simpan link & Sub_ID</span></div>
+<div class="card">
+ <input id="slName" placeholder="Nama produk *" style="width:100%;padding:11px;border:1px solid var(--line);border-radius:9px;margin-bottom:8px">
+ <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+  <input id="slPrice" type="number" step="0.01" placeholder="Harga RM" style="min-width:0;padding:11px;border:1px solid var(--line);border-radius:9px">
+  <input id="slCommission" type="number" step="0.01" placeholder="Komisen %" style="min-width:0;padding:11px;border:1px solid var(--line);border-radius:9px">
+ </div>
+ <input id="slImage" placeholder="URL gambar produk (pilihan)" style="width:100%;padding:11px;border:1px solid var(--line);border-radius:9px;margin-top:8px">
+ <input id="slLink" placeholder="Shopee short link * (contoh https://s.shopee.com.my/...)" style="width:100%;padding:11px;border:1px solid var(--line);border-radius:9px;margin-top:8px">
+ <div class="meta" style="margin:10px 0 6px">Sub_ID — isi nilai yang sama seperti dalam Shopee Advanced Link</div>
+ <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+  <input id="slSub1" placeholder="Sub_id1 · PRODUCT01" style="min-width:0;padding:10px;border:1px solid var(--line);border-radius:9px">
+  <input id="slSub2" placeholder="Sub_id2 · FACEBOOK" style="min-width:0;padding:10px;border:1px solid var(--line);border-radius:9px">
+  <input id="slSub3" placeholder="Sub_id3 · VIDEO01" style="min-width:0;padding:10px;border:1px solid var(--line);border-radius:9px">
+  <input id="slSub4" placeholder="Sub_id4 · NOV2026" style="min-width:0;padding:10px;border:1px solid var(--line);border-radius:9px">
+  <input id="slSub5" placeholder="Sub_id5 · TEST01" style="min-width:0;padding:10px;border:1px solid var(--line);border-radius:9px">
+ </div>
+ <button class="primary" onclick="saveShopeeLink()" style="width:100%;padding:12px;margin-top:10px">＋ Simpan Affiliate Link</button>
+ <div class="meta" style="margin-top:7px">Link disimpan pada browser/peranti ini. Dapatkan short link daripada Shopee; aplikasi tidak menjana link Shopee sendiri.</div>
+</div>
+<div id="shopeeLinksList"></div>
 <div class="section-head"><h3>Product Hunter</h3><span class="muted">Data daripada database anda</span></div>
 <div class="search"><input id="q" placeholder="Cari produk..." aria-label="Cari produk"><button onclick="render()">Cari</button></div>
 <div class="chips"><button class="chip active" data-cat="Semua">Semua</button><button class="chip" data-cat="Home & Living">Home & Living</button><button class="chip" data-cat="Kitchen">Kitchen</button><button class="chip" data-cat="Elektronik">Elektronik</button><button class="chip" data-cat="Automotif">Automotif</button></div>
@@ -120,7 +141,7 @@ async function importCSV(){
    try{const res=await fetch(API_BASE+'/api/products',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const data=await res.json();if(res.ok&&data.ok)added++;else errors++}catch(e){errors++}
   }
   status.textContent='Selesai: '+added+' ditambah, '+skipped+' dilangkau, '+errors+' gagal.';
-  toast('Import selesai: '+added+' produk');await refreshCampaignAnalytics();\nloadProducts();
+  toast('Import selesai: '+added+' produk');await refreshCampaignAnalytics();\nrenderShopeeLinks();\nloadProducts();
  }catch(e){status.textContent='Ralat: '+e.message;toast('Import gagal: '+e.message)}
 }
 async function addProduct(){
@@ -151,6 +172,27 @@ async function copyMarketingKit(id){
  const p=products.find(x=>x.id===id);if(!p)return;const m=marketingText(p);const all='HOOK\\n'+m.hook+'\\n\\nVIDEO 15 SAAT\\n'+m.script+'\\n\\nCAPTION\\n'+m.caption+'\\n\\nCTA\\n'+m.cta;
  try{await navigator.clipboard.writeText(all);toast('Marketing Kit disalin!')}catch(e){toast('Clipboard tidak tersedia pada browser ini.')}
 }
+let shopeeLinks=[];
+try{shopeeLinks=JSON.parse(localStorage.getItem('ah_shopee_links')||'[]');if(!Array.isArray(shopeeLinks))shopeeLinks=[]}catch(e){shopeeLinks=[]}
+function safeText(v){return String(v??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]))}
+function saveShopeeLink(){
+ const val=id=>document.getElementById(id).value.trim();
+ const name=val('slName'),link=val('slLink');
+ if(!name||!link){toast('Nama produk dan Shopee short link wajib diisi.');return}
+ let u;try{u=new URL(link);if(!['https:','http:'].includes(u.protocol))throw new Error()}catch(e){toast('Format URL tidak sah.');return}
+ const record={id:Date.now(),name,price:val('slPrice')===''?null:Number(val('slPrice')),commission_rate:val('slCommission')===''?null:Number(val('slCommission')),image_url:val('slImage'),affiliate_url:link,sub_ids:[1,2,3,4,5].map(n=>val('slSub'+n)),created_at:new Date().toISOString()};
+ shopeeLinks.unshift(record);
+ try{localStorage.setItem('ah_shopee_links',JSON.stringify(shopeeLinks))}catch(e){shopeeLinks.shift();toast('Storan browser penuh. Eksport backup atau kosongkan ruang.');return}
+ ['slName','slPrice','slCommission','slImage','slLink','slSub1','slSub2','slSub3','slSub4','slSub5'].forEach(id=>document.getElementById(id).value='');
+ renderShopeeLinks();toast('Affiliate link berjaya disimpan pada peranti ini.');
+}
+function renderShopeeLinks(){
+ const el=document.getElementById('shopeeLinksList');if(!el)return;
+ if(!shopeeLinks.length){el.innerHTML='<div class="empty">Belum ada affiliate link disimpan.</div>';return}
+ el.innerHTML=shopeeLinks.map(x=>'<div class="card"><div class="name">'+safeText(x.name)+'</div><div class="meta">'+(x.price==null?'Harga —':'RM '+Number(x.price).toFixed(2))+' · '+(x.commission_rate==null?'Komisen —':safeText(x.commission_rate)+'% komisen')+'</div>'+(x.image_url?'<img src="'+safeText(x.image_url)+'" alt="" style="width:64px;height:64px;object-fit:cover;border-radius:8px;margin-top:8px">':'')+'<input readonly value="'+safeText(x.affiliate_url)+'" style="width:100%;padding:9px;border:1px solid var(--line);border-radius:8px;margin-top:8px"><div class="meta" style="margin-top:7px">Sub_ID: '+x.sub_ids.map((v,i)=>v?safeText(''+(i+1)+'='+v):'').filter(Boolean).join(' · ')+'</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:9px"><button class="chip" onclick="copyShopeeLink('+x.id+')">Salin link</button><button class="chip" onclick="deleteShopeeLink('+x.id+')">Padam</button></div></div>').join('');
+}
+async function copyShopeeLink(id){const x=shopeeLinks.find(v=>v.id===id);if(!x)return;try{await navigator.clipboard.writeText(x.affiliate_url);toast('Link disalin.')}catch(e){toast('Clipboard tidak tersedia. Tekan dan salin link dalam kotak.')}}
+function deleteShopeeLink(id){if(!confirm('Padam rekod link ini?'))return;shopeeLinks=shopeeLinks.filter(x=>x.id!==id);localStorage.setItem('ah_shopee_links',JSON.stringify(shopeeLinks));renderShopeeLinks();toast('Rekod dipadam.')}
 let campaignData={};
 try{campaignData=JSON.parse(localStorage.getItem('ah_campaigns')||'{}')||{}}catch(e){campaignData={}}
 function refreshCampaignAnalytics(){
