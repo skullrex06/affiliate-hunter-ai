@@ -19,7 +19,7 @@ export default {
       if (url.pathname === "/api/products" && request.method === "GET") {
         const q=(url.searchParams.get("q")||"").trim();
         const category=(url.searchParams.get("category")||"").trim();
-        const limit=Math.min(Math.max(Number(url.searchParams.get("limit")||100),1),500);
+        const limit=Math.min(Math.max(Number(url.searchParams.get("limit")||100),1),10000);
         let sql="SELECT * FROM products WHERE 1=1";
         const params=[];
         if(q){sql+=" AND (name LIKE ? OR category LIKE ?)";params.push("%"+q+"%","%"+q+"%");}
