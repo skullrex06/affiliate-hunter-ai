@@ -51,7 +51,7 @@ nav button{background:none;border:0;color:inherit;font-size:10px;display:grid;ga
 <nav><button class="active"><strong>⌂</strong>Home</button><button><strong>⬡</strong>Produk</button><button><strong>▶</strong>Prompt</button><button><strong>↗</strong>Promosi</button><button><strong>▥</strong>Statistik</button></nav>
 <div class="toast" id="toast"></div>
 <script>
-const API_BASE="https://hunter-ai.umayaris06.workers.dev";
+const API_BASE="https://affiliate-hunter-ai.umayaris06.workers.dev";
 let products=[],category="Semua";
 function toast(t){let el=document.getElementById('toast');el.textContent=t;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),2400)}
 function promptFor(p){return "Create a vertical 9:16 product advertisement video using the uploaded reference image. Keep the product's exact shape, color, proportions and visible details consistent with the reference. Product: "+p.name+". Show a clean realistic demonstration in a bright modern home, smooth cinematic camera movement, attractive natural lighting, clear product focus, no invented logos, no misleading claims, no extra text, 8 seconds."}
