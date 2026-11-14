@@ -175,7 +175,9 @@ async function copyMarketingKit(id){
 let shopeeLinks=[];
 try{shopeeLinks=JSON.parse(localStorage.getItem('ah_shopee_links')||'[]');if(!Array.isArray(shopeeLinks))shopeeLinks=[]}catch(e){shopeeLinks=[]}
 function safeText(v){return String(v??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]))}
-function refreshLinkProductOptions(){const sel=document.getElementById("slProduct");if(!sel)return;const old=sel.value;sel.innerHTML='<option value="">Pautkan dengan produk dalam Product Hunter (pilihan)</option>'+products.map(p=>'<option value="'+p.id+'">'+safeText(p.name)+'</option>').join("");if(old&&products.some(p=>String(p.id)===old))sel.value=old;}\nfunction openLinkedCampaign(linkId){const item=shopeeLinks.find(x=>x.id===linkId);if(!item||!item.product_id){toast("Link ini belum dipautkan dengan produk.");return}showCampaign(item.product_id);setTimeout(()=>{const target=document.getElementById("campaign-"+item.product_id);if(target)target.scrollIntoView({behavior:"smooth",block:"center"})},100)}\nfunction saveShopeeLink(){
+function refreshLinkProductOptions(){const sel=document.getElementById("slProduct");if(!sel)return;const old=sel.value;sel.innerHTML='<option value="">Pautkan dengan produk dalam Product Hunter (pilihan)</option>'+products.map(p=>'<option value="'+p.id+'">'+safeText(p.name)+'</option>').join("");if(old&&products.some(p=>String(p.id)===old))sel.value=old;}
+function openLinkedCampaign(linkId){const item=shopeeLinks.find(x=>x.id===linkId);if(!item||!item.product_id){toast("Link ini belum dipautkan dengan produk.");return}showCampaign(item.product_id);setTimeout(()=>{const target=document.getElementById("campaign-"+item.product_id);if(target)target.scrollIntoView({behavior:"smooth",block:"center"})},100)}
+function saveShopeeLink(){
  const val=id=>document.getElementById(id).value.trim();
  const name=val('slName'),link=val('slLink');
  if(!name||!link){toast('Nama produk dan Shopee short link wajib diisi.');return}
