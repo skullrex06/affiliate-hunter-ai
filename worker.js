@@ -12,6 +12,7 @@ export default {
     if (request.method === "OPTIONS") return new Response(null, {headers:cors});
     if (!env.DB) return json({ok:false,error:"D1 binding DB is not configured"},500);
     try {
+      try { await env.DB.prepare("ALTER TABLE products ADD COLUMN subcategory TEXT").run(); } catch (e) {}
       if (url.pathname === "/api/health" && request.method === "GET") {
         await env.DB.prepare("SELECT 1").first();
         return json({ok:true,service:"Affiliate Hunter AI API",database:"connected"});
@@ -54,6 +55,7 @@ export default {
         if(!name) return json({ok:false,error:"Product name is required"},400);
         const fields={
           category:String(body.category||"Other").slice(0,80),
+          subcategory:body.subcategory?String(body.subcategory).slice(0,100):null,
           price:body.price==null?null:Number(body.price),
           commission_rate:body.commission_rate==null?null:Number(body.commission_rate),
           rating:body.rating==null?null:Number(body.rating),
@@ -64,16 +66,21 @@ export default {
           notes:body.notes?String(body.notes).slice(0,2000):null
         };
         const result=await env.DB.prepare(
-          "INSERT INTO products (name,category,price,commission_rate,rating,sold_count,image_url,product_url,affiliate_url,notes) VALUES (?,?,?,?,?,?,?,?,?,?)"
-        ).bind(name,fields.category,fields.price,fields.commission_rate,fields.rating,fields.sold_count,fields.image_url,fields.product_url,fields.affiliate_url,fields.notes).run();
+          "INSERT INTO products (name,category,subcategory,price,commission_rate,rating,sold_count,image_url,product_url,affiliate_url,notes) VALUES (?,?,?,?,?,?,?,?,?,?,?)"
+        ).bind(name,fields.category,fields.subcategory,fields.price,fields.commission_rate,fields.rating,fields.sold_count,fields.image_url,fields.product_url,fields.affiliate_url,fields.notes).run();
         return json({ok:true,id:result.meta.last_row_id},201);
       }
       if (url.pathname.startsWith("/api/products/") && request.method === "PUT") {
         const id=Number(url.pathname.split("/").pop());
         if(!Number.isInteger(id)||id<1) return json({ok:false,error:"Invalid product id"},400);
         const body=await request.json();
-        const image=body.image_url?String(body.image_url).slice(0,2000):null;
-        const result=await env.DB.prepare("UPDATE products SET image_url=? WHERE id=?").bind(image,id).run();
+        const sets=[],values=[];
+        if(Object.prototype.hasOwnProperty.call(body,"image_url")){sets.push("image_url=?");values.push(body.image_url?String(body.image_url).slice(0,2000):null)}
+        if(Object.prototype.hasOwnProperty.call(body,"category")){sets.push("category=?");values.push(String(body.category||"Other").slice(0,80))}
+        if(Object.prototype.hasOwnProperty.call(body,"subcategory")){sets.push("subcategory=?");values.push(body.subcategory?String(body.subcategory).slice(0,100):null)}
+        if(!sets.length)return json({ok:false,error:"No fields to update"},400);
+        values.push(id);
+        const result=await env.DB.prepare("UPDATE products SET "+sets.join(",")+" WHERE id=?").bind(...values).run();
         return json({ok:true,changes:result.meta.changes||0});
       }
       if (url.pathname.startsWith("/api/products/") && request.method === "DELETE") {
