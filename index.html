@@ -116,7 +116,7 @@ async function searchFastMoss(){
  try{
   const res=await fetch(API_BASE+"/api/fastmoss/products",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({region,date,pagesize:20,page:1})});
   const data=await res.json();
-  if(!res.ok||!data.ok)throw new Error(data.error+(data.upstream_status?" (HTTP "+data.upstream_status+")":"")+(data.detail?.msg?": "+data.detail.msg:""));
+  if(!res.ok||!data.ok){const extra=data.fastmoss_code!==undefined?" · code "+data.fastmoss_code:"";const msg=data.fastmoss_message||data.detail?.msg||data.error;const req=data.request_id?" · request "+data.request_id:"";throw new Error((msg||data.error||"Request failed")+extra+req+(data.upstream_status?" · HTTP "+data.upstream_status:""));}
   fastMossProducts=data.products||[];
   status.textContent="Ditemui "+fastMossProducts.length+" daripada "+(data.total||0)+" rekod · "+region+" · "+date;
   if(!fastMossProducts.length){box.innerHTML='<div class="empty">Tiada produk dipulangkan untuk tarikh dan pasaran ini.</div>';return}
