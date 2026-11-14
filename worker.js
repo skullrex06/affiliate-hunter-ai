@@ -36,7 +36,7 @@ export default {
         });
         const raw = await upstream.json().catch(()=>({}));
         if (!upstream.ok) return json({ok:false,error:"FastMoss request failed",upstream_status:upstream.status,detail:raw},502);
-        if (raw.code !== 0) return json({ok:false,error:"FastMoss returned an API error",detail:raw},502);
+        if (raw.code !== 0) return json({ok:false,error:"FastMoss API error",fastmoss_code:raw.code,fastmoss_message:raw.msg||"No message",request_id:raw.request_id||null},502);
         return json({ok:true,source:"FastMoss",region,date:dateValue,total:raw.data?.total||0,products:raw.data?.list||[]});
       }
       if (url.pathname === "/api/products" && request.method === "GET") {
