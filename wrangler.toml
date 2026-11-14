@@ -1,0 +1,8 @@
+name = "affiliate-hunter-ai-api"
+main = "worker.js"
+compatibility_date = "2026-11-14"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "affiliate-hunter-db"
+database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
