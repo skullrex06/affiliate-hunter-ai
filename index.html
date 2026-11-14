@@ -49,6 +49,10 @@ nav button{background:none;border:0;color:inherit;font-size:10px;display:grid;ga
  <button class="primary" onclick="importCSV()" style="width:100%;padding:12px;margin-top:10px">Import CSV ke database</button>
  <div class="meta" id="importStatus" aria-live="polite"></div>
 </div>
+<div class="section-head"><h3>AI Product Trend Analyzer</h3><span class="muted">Analisis data tersimpan</span></div>
+<div class="card" id="trendPanel">
+ <div class="meta">Menganalisis produk...</div>
+</div>
 <div class="section-head"><h3>Product Hunter</h3><span class="muted">Data daripada database anda</span></div>
 <div class="search"><input id="q" placeholder="Cari produk..." aria-label="Cari produk"><button onclick="render()">Cari</button></div>
 <div class="chips"><button class="chip active" data-cat="Semua">Semua</button><button class="chip" data-cat="Home & Living">Home & Living</button><button class="chip" data-cat="Kitchen">Kitchen</button><button class="chip" data-cat="Elektronik">Elektronik</button><button class="chip" data-cat="Automotif">Automotif</button></div>
@@ -143,7 +147,20 @@ function opportunity(p){
  score+=(completeness/4)*10;
  return {score:Math.round(Math.max(0,Math.min(100,score))),completeness};
 }
+function analyzeTrends(){
+ const panel=document.getElementById('trendPanel');if(!panel)return;
+ if(!products.length){panel.innerHTML='<div style="font-weight:800">Belum cukup data untuk analisis.</div><div class="meta">Import atau simpan beberapa produk dahulu. Analisis ini menggunakan data yang anda masukkan, bukan trend Shopee secara langsung.</div>';return}
+ const groups={};
+ products.forEach(p=>{const c=p.category||'Other';if(!groups[c])groups[c]={count:0,total:0,commission:0,commissionN:0,sold:0,soldN:0,complete:0};const g=groups[c],o=opportunity(p);g.count++;g.total+=o.score;if(p.commission_rate!=null){g.commission+=Number(p.commission_rate)||0;g.commissionN++}if(p.sold_count!=null){g.sold+=Number(p.sold_count)||0;g.soldN++}g.complete+=o.completeness});
+ const ranked=Object.entries(groups).map(([name,g])=>({name,...g,avg:Math.round(g.total/g.count),avgCommission:g.commissionN?g.commission/g.commissionN:0,avgSold:g.soldN?g.sold/g.soldN:0,quality:Math.round(g.complete/(g.count*4)*100)})).sort((a,b)=>b.avg-a.avg);
+ const best=ranked[0],top=products.map(p=>({...p,opp:opportunity(p)})).sort((a,b)=>b.opp.score-a.opp.score).slice(0,3);
+ const missing=products.filter(p=>p.price==null||p.rating==null||p.sold_count==null||p.commission_rate==null).length;
+ const categoryHtml=ranked.slice(0,3).map(g=>'<div style="display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)"><span><b>'+g.name+'</b><div class="meta">'+g.count+' produk · kelengkapan '+g.quality+'%</div></span><b>'+g.avg+'/100</b></div>').join('');
+ const topHtml=top.map((p,i)=>'<div class="meta" style="padding:4px 0">'+(i+1)+'. '+p.name+' — '+p.opp.score+'/100</div>').join('');
+ panel.innerHTML='<div style="display:grid;grid-template-columns:1fr 1fr;gap:9px"><div style="background:#f5f1ff;border-radius:12px;padding:11px"><div class="meta">Kategori utama</div><b>'+best.name+'</b><div class="meta">Purata skor '+best.avg+'/100</div></div><div style="background:#fff6e9;border-radius:12px;padding:11px"><div class="meta">Data belum lengkap</div><b style="font-size:22px">'+missing+'/'+products.length+'</b><div class="meta">Produk perlukan semakan</div></div></div><h4 style="margin:15px 0 5px">Ranking kategori</h4>'+categoryHtml+'<h4 style="margin:15px 0 5px">Produk untuk disemak dahulu</h4>'+topHtml+'<div class="demo" style="margin-top:12px;margin-bottom:0">Cadangan: semak harga, rating, jualan dan komisen produk teratas sebelum hasilkan video. Ini analisis heuristik berdasarkan rekod anda, bukan ramalan atau data trend live Shopee.</div>';
+}
 function render(){
+ analyzeTrends();
  const q=(document.getElementById('q').value||'').toLowerCase();
  let rows=products.filter(p=>(category==='Semua'||p.category===category||(category==='Home & Living'&&p.category==='Kitchen'))&&((p.name||'').toLowerCase().includes(q)||(p.category||'').toLowerCase().includes(q)));
  const sort=document.getElementById('sortBy')?.value||'score';
