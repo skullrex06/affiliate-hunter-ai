@@ -26,28 +26,69 @@ nav button{background:none;border:0;color:inherit;font-size:10px;display:grid;ga
 <header><div class="top"><div class="brand">🛍️ Affiliate Hunter AI<small>SHOPEE AFFILIATE • MALAYSIA</small></div><div class="pill">● PROTOTYPE</div></div>
 <div class="hero"><div class="robot">🤖</div><div><h2>Produk dicari. Prompt disediakan.</h2><p>Cari produk, semak peluang, simpan gambar rujukan dan jana prompt Google Flow.</p></div></div></header>
 <main>
-<div class="section-head"><h3>Ringkasan</h3><span class="muted">Data demo</span></div>
-<div class="stats"><div class="stat"><span>Produk dalam senarai</span><b id="total">3</b></div><div class="stat"><span>Prompt tersedia</span><b id="prompts">3</b></div></div>
-<div class="section-head"><h3>Product Hunter</h3><span class="muted">Tiada kuota produk dalam UI</span></div>
-<div class="search"><input id="q" placeholder="Cari produk, contoh: air fryer..." aria-label="Cari produk"><button onclick="render()">Cari</button></div>
+<div class="section-head"><h3>Ringkasan</h3><span class="muted" id="apiStatus">Menyambung...</span></div>
+<div class="stats"><div class="stat"><span>Produk tersimpan</span><b id="total">0</b></div><div class="stat"><span>Prompt tersedia</span><b id="prompts">0</b></div></div>
+<div class="section-head"><h3>Tambah Produk</h3><span class="muted">Simpan ke Cloudflare D1</span></div>
+<div class="card">
+  <input id="newName" placeholder="Nama produk *" style="width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+    <select id="newCategory" style="padding:12px;border:1px solid var(--line);border-radius:10px;background:white"><option>Home & Living</option><option>Kitchen</option><option>Elektronik</option><option>Automotif</option><option>Beauty</option><option>Fashion</option><option>Other</option></select>
+    <input id="newPrice" type="number" step="0.01" placeholder="Harga RM" style="min-width:0;padding:12px;border:1px solid var(--line);border-radius:10px">
+    <input id="newCommission" type="number" step="0.01" placeholder="Komisen %" style="min-width:0;padding:12px;border:1px solid var(--line);border-radius:10px">
+    <input id="newRating" type="number" step="0.1" min="0" max="5" placeholder="Rating" style="min-width:0;padding:12px;border:1px solid var(--line);border-radius:10px">
+    <input id="newSold" type="number" placeholder="Jumlah terjual" style="min-width:0;padding:12px;border:1px solid var(--line);border-radius:10px">
+  </div>
+  <input id="newImage" placeholder="URL gambar produk (pilihan)" style="width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;margin-top:8px">
+  <input id="newLink" placeholder="URL produk Shopee (pilihan)" style="width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;margin-top:8px">
+  <button class="primary" onclick="addProduct()" style="width:100%;padding:13px;margin-top:10px">＋ Simpan Produk</button>
+</div>
+<div class="section-head"><h3>Product Hunter</h3><span class="muted">Data daripada database anda</span></div>
+<div class="search"><input id="q" placeholder="Cari produk..." aria-label="Cari produk"><button onclick="render()">Cari</button></div>
 <div class="chips"><button class="chip active" data-cat="Semua">Semua</button><button class="chip" data-cat="Home & Living">Home & Living</button><button class="chip" data-cat="Kitchen">Kitchen</button><button class="chip" data-cat="Elektronik">Elektronik</button><button class="chip" data-cat="Automotif">Automotif</button></div>
-<div class="demo"><b>Nota prototaip:</b> Kad di bawah ialah data contoh untuk menguji reka bentuk. Belum disambungkan kepada data produk, harga atau komisen Shopee sebenar.</div>
-<div id="list"></div>
+<div class="demo"><b>Nota:</b> Produk yang ditambah disimpan dalam Cloudflare D1. Harga, rating, jualan dan komisen perlu disahkan daripada sumber Shopee/affiliate yang dibenarkan; aplikasi belum mengambil data Shopee secara automatik.</div>
+<div id="list"><div class="empty">Memuatkan produk...</div></div>
 </main>
 <nav><button class="active"><strong>⌂</strong>Home</button><button><strong>⬡</strong>Produk</button><button><strong>▶</strong>Prompt</button><button><strong>↗</strong>Promosi</button><button><strong>▥</strong>Statistik</button></nav>
 <div class="toast" id="toast"></div>
 <script>
-const products=[
-{id:1,name:"Air Fryer Digital 8L",cat:"Kitchen",price:"RM129.90",commission:"Contoh 8%",score:96,img:"https://images.unsplash.com/photo-1585515320310-259814833e62?w=500",query:"air fryer digital 8L"},
-{id:2,name:"Rak Organizer Dapur",cat:"Home & Living",price:"RM29.90",commission:"Contoh 10%",score:93,img:"https://images.unsplash.com/photo-1556911220-e15b29be8c8f?w=500",query:"rak organizer dapur"},
-{id:3,name:"Vacuum Cleaner Portable",cat:"Elektronik",price:"RM49.90",commission:"Contoh 7%",score:92,img:"https://images.unsplash.com/photo-1558317374-067fb5f30001?w=500",query:"vacuum cleaner portable"}
-];
-let category="Semua";
-function toast(t){let el=document.getElementById('toast');el.textContent=t;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),2200)}
+const API_BASE="https://hunter-ai.umayaris06.workers.dev";
+let products=[],category="Semua";
+function toast(t){let el=document.getElementById('toast');el.textContent=t;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),2400)}
 function promptFor(p){return "Create a vertical 9:16 product advertisement video using the uploaded reference image. Keep the product's exact shape, color, proportions and visible details consistent with the reference. Product: "+p.name+". Show a clean realistic demonstration in a bright modern home, smooth cinematic camera movement, attractive natural lighting, clear product focus, no invented logos, no misleading claims, no extra text, 8 seconds."}
-function render(){let q=document.getElementById('q').value.toLowerCase();let rows=products.filter(p=>(category==="Semua"||p.cat===category|| (category==="Home & Living"&&p.cat==="Kitchen"))&&(p.name.toLowerCase().includes(q)||p.cat.toLowerCase().includes(q)));document.getElementById('total').textContent=rows.length;document.getElementById('prompts').textContent=rows.length;document.getElementById('list').innerHTML=rows.length?rows.map(p=>'<article class="card"><div class="product"><img src="'+p.img+'" alt="Contoh gambar '+p.name+'"><div><span class="score">Skor demo '+p.score+'</span><div class="name">'+p.name+'</div><div class="meta">'+p.cat+' · Data contoh, bukan listing Shopee disahkan</div><div class="price">'+p.price+'</div><span class="commission">'+p.commission+' komisen*</span></div></div><div class="actions"><button onclick="downloadImage('+p.id+')">⬇ Gambar</button><button onclick="copyPrompt('+p.id+')">▤ Prompt</button><button onclick="openSearch('+p.id+')">↗ Cari Shopee</button></div></article>').join(''):'<div class="empty">Tiada produk ditemui.</div>'}
+async function loadProducts(){
+ const status=document.getElementById('apiStatus');
+ try{
+  const res=await fetch(API_BASE+'/api/products?limit=500');
+  if(!res.ok) throw new Error('HTTP '+res.status);
+  const data=await res.json(); if(!data.ok) throw new Error(data.error||'API error');
+  products=data.products||[];status.textContent='● API connected';status.style.color='var(--green)';render();
+ }catch(e){status.textContent='● API gagal';status.style.color='#c33';document.getElementById('list').innerHTML='<div class="empty">Tidak dapat memuatkan database. Semak Worker API.</div>';toast('Gagal sambung API: '+e.message)}
+}
+async function addProduct(){
+ const name=document.getElementById('newName').value.trim();
+ if(!name){toast('Masukkan nama produk dahulu.');return}
+ const numberOrNull=id=>document.getElementById(id).value===''?null:Number(document.getElementById(id).value);
+ const body={name,category:document.getElementById('newCategory').value,price:numberOrNull('newPrice'),commission_rate:numberOrNull('newCommission'),rating:numberOrNull('newRating'),sold_count:numberOrNull('newSold'),image_url:document.getElementById('newImage').value.trim()||null,product_url:document.getElementById('newLink').value.trim()||null};
+ try{
+  const res=await fetch(API_BASE+'/api/products',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const data=await res.json();if(!res.ok||!data.ok)throw new Error(data.error||'Gagal simpan');
+  ['newName','newPrice','newCommission','newRating','newSold','newImage','newLink'].forEach(id=>document.getElementById(id).value='');
+  toast('Produk berjaya disimpan!');await loadProducts();
+ }catch(e){toast('Ralat simpan: '+e.message)}
+}
+async function deleteProduct(id){
+ if(!confirm('Padam produk ini?'))return;
+ try{const res=await fetch(API_BASE+'/api/products/'+id,{method:'DELETE'});const data=await res.json();if(!res.ok||!data.ok)throw new Error(data.error||'Gagal padam');toast('Produk dipadam.');await loadProducts()}catch(e){toast('Ralat: '+e.message)}
+}
 async function copyPrompt(id){let p=products.find(x=>x.id===id);try{await navigator.clipboard.writeText(promptFor(p));toast('Prompt disalin!')}catch(e){toast('Clipboard tidak tersedia pada browser ini.')}}
-function downloadImage(id){let p=products.find(x=>x.id===id);let a=document.createElement('a');a.href=p.img;a.download='reference-'+id+'.jpg';a.target='_blank';a.rel='noopener';a.click();toast('Membuka imej rujukan. Simpan imej jika diminta.')}
-function openSearch(id){let p=products.find(x=>x.id===id);window.open('https://shopee.com.my/search?keyword='+encodeURIComponent(p.query),'_blank','noopener')}
-document.querySelectorAll('.chip').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('.chip').forEach(x=>x.classList.remove('active'));b.classList.add('active');category=b.dataset.cat;render()}));render();
+function downloadImage(id){let p=products.find(x=>x.id===id);if(!p.image_url){toast('Produk ini belum ada URL gambar.');return}window.open(p.image_url,'_blank','noopener');toast('Imej dibuka. Simpan melalui browser jika tersedia.')}
+function openSearch(id){let p=products.find(x=>x.id===id);let query=p.name;window.open(p.product_url||('https://shopee.com.my/search?keyword='+encodeURIComponent(query)),'_blank','noopener')}
+function render(){
+ const q=(document.getElementById('q').value||'').toLowerCase();
+ const rows=products.filter(p=>(category==='Semua'||p.category===category||(category==='Home & Living'&&p.category==='Kitchen'))&&((p.name||'').toLowerCase().includes(q)||(p.category||'').toLowerCase().includes(q)));
+ document.getElementById('total').textContent=products.length;document.getElementById('prompts').textContent=products.length;
+ document.getElementById('list').innerHTML=rows.length?rows.map(p=>'<article class="card"><div class="product"><img src="'+(p.image_url||'https://placehold.co/300x300?text=No+Image')+'" alt="Gambar '+p.name+'" onerror="this.src=\'https://placehold.co/300x300?text=No+Image\'"><div><div class="name">'+p.name+'</div><div class="meta">'+(p.category||'Other')+' · ID '+p.id+'</div><div class="price">'+(p.price==null?'Harga belum diisi':'RM '+Number(p.price).toFixed(2))+'</div><span class="commission">'+(p.commission_rate==null?'Komisen belum diisi':Number(p.commission_rate)+'% komisen')+'</span><div class="meta">Rating: '+(p.rating??'—')+' · Terjual: '+(p.sold_count??'—')+'</div></div></div><div class="actions"><button onclick="downloadImage('+p.id+')">⬇ Gambar</button><button onclick="copyPrompt('+p.id+')">▤ Prompt</button><button onclick="openSearch('+p.id+')">↗ Shopee</button></div><button onclick="deleteProduct('+p.id+')" style="margin-top:8px;width:100%;padding:8px;border:1px solid #f2caca;background:#fff7f7;color:#b22;border-radius:9px">Padam produk</button></article>').join(''):'<div class="empty">Belum ada produk. Tambah produk di atas.</div>';
+}
+document.querySelectorAll('.chip').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('.chip').forEach(x=>x.classList.remove('active'));b.classList.add('active');category=b.dataset.cat;render()}));
+loadProducts();
 </script></body></html>
