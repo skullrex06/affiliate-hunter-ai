@@ -16,6 +16,25 @@ export default {
         await env.DB.prepare("SELECT 1").first();
         return json({ok:true,service:"Affiliate Hunter AI API",database:"connected"});
       }
+      if (url.pathname === "/api/product-image" && request.method === "GET") {
+        const raw=url.searchParams.get("url")||"";
+        let target;
+        try { target=new URL(raw); } catch { return json({ok:false,error:"URL produk tidak sah"},400); }
+        const allowed=h=>h==="shopee.com.my"||h.endsWith(".shopee.com.my");
+        if(target.protocol!=="https:"||!allowed(target.hostname)) return json({ok:false,error:"Hanya URL Shopee Malaysia dibenarkan"},400);
+        const page=await fetch(target.toString(),{headers:{"User-Agent":"Mozilla/5.0 (compatible; AffiliateHunterAI/1.0)","Accept":"text/html,application/xhtml+xml"},redirect:"follow"});
+        const finalUrl=new URL(page.url);
+        if(!allowed(finalUrl.hostname)) return json({ok:false,error:"Pautan dialihkan ke domain yang tidak dibenarkan"},400);
+        if(!page.ok) return json({ok:false,error:"Shopee tidak membenarkan halaman ini diakses sekarang (HTTP "+page.status+"). Masukkan URL gambar secara manual."},502);
+        const html=(await page.text()).slice(0,1500000);
+        const meta=(property)=>{const re=new RegExp('<meta[^>]+(?:property|name)=["\\']'+property+'["\\'][^>]+content=["\\']([^"\\']+)["\\']','i');const m=html.match(re);return m?m[1].replace(/&amp;/g,"&").replace(/&quot;/g,'"'):null;};
+        const image=meta("og:image")||meta("twitter:image");
+        const title=meta("og:title")||meta("twitter:title");
+        if(!image) return json({ok:false,error:"Imej tidak ditemui pada halaman Shopee ini. Shopee mungkin menyekat preview; masukkan URL gambar secara manual."},404);
+        let imageUrl;try{imageUrl=new URL(image,finalUrl).toString()}catch{return json({ok:false,error:"URL imej daripada halaman tidak sah"},502)}
+        if(!imageUrl.startsWith("https://")) return json({ok:false,error:"URL imej tidak selamat"},502);
+        return json({ok:true,image_url:imageUrl,title,source:finalUrl.toString()});
+      }
       if (url.pathname === "/api/products" && request.method === "GET") {
         const q=(url.searchParams.get("q")||"").trim();
         const category=(url.searchParams.get("category")||"").trim();
