@@ -28,6 +28,17 @@ nav button{background:none;border:0;color:inherit;font-size:10px;display:grid;ga
 <main>
 <div class="section-head"><h3>Ringkasan</h3><span class="muted" id="apiStatus">Menyambung...</span></div>
 <div class="stats"><div class="stat"><span>Produk tersimpan</span><b id="total">0</b></div><div class="stat"><span>Prompt tersedia</span><b id="prompts">0</b></div></div>
+<div class="section-head"><h3>FastMoss TikTok Shop Research</h3><span class="muted">API · Malaysia</span></div>
+<div class="card">
+ <div class="meta" style="margin-bottom:9px">Cari produk TikTok Shop paling laris melalui FastMoss. Setiap panggilan API mungkin dikenakan caj mengikut pelan FastMoss.</div>
+ <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+  <select id="fmRegion" style="padding:11px;border:1px solid var(--line);border-radius:9px;background:white"><option value="MY">Malaysia</option><option value="SG">Singapore</option><option value="ID">Indonesia</option><option value="TH">Thailand</option><option value="PH">Philippines</option><option value="VN">Vietnam</option></select>
+  <input id="fmDate" type="date" style="min-width:0;padding:10px;border:1px solid var(--line);border-radius:9px">
+ </div>
+ <button class="primary" id="fmSearchBtn" onclick="searchFastMoss()" style="width:100%;padding:12px;margin-top:10px">🔎 Cari Produk Trending</button>
+ <div class="meta" id="fmStatus" style="margin-top:8px" aria-live="polite">API key disimpan secara rahsia di Cloudflare Worker.</div>
+ <div id="fmResults" style="margin-top:10px"></div>
+</div>
 <div class="section-head"><h3>Tambah Produk</h3><span class="muted">Simpan ke Cloudflare D1</span></div>
 <div class="card">
   <input id="newName" placeholder="Nama produk *" style="width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px">
@@ -91,6 +102,34 @@ const API_BASE="https://affiliate-hunter-ai.umayaris06.workers.dev";
 let products=[],category="Semua";
 function toast(t){let el=document.getElementById('toast');el.textContent=t;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),2400)}
 function promptFor(p){return "Create a vertical 9:16 product advertisement video using the uploaded reference image. Keep the product's exact shape, color, proportions and visible details consistent with the reference. Product: "+p.name+". Show a clean realistic demonstration in a bright modern home, smooth cinematic camera movement, attractive natural lighting, clear product focus, no invented logos, no misleading claims, no extra text, 8 seconds."}
+let fastMossProducts=[];
+function initFastMossDate(){
+ const el=document.getElementById("fmDate");if(!el)return;
+ const d=new Date();d.setDate(d.getDate()-1);el.value=d.toISOString().slice(0,10);
+}
+async function searchFastMoss(){
+ const btn=document.getElementById("fmSearchBtn"),status=document.getElementById("fmStatus"),box=document.getElementById("fmResults");
+ const region=document.getElementById("fmRegion").value,date=document.getElementById("fmDate").value;
+ if(!date){toast("Pilih tarikh dahulu.");return}
+ btn.disabled=true;btn.textContent="Sedang mencari...";status.textContent="Menghubungi FastMoss...";
+ box.innerHTML="";
+ try{
+  const res=await fetch(API_BASE+"/api/fastmoss/products",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({region,date,pagesize:20,page:1})});
+  const data=await res.json();
+  if(!res.ok||!data.ok)throw new Error(data.error+(data.upstream_status?" (HTTP "+data.upstream_status+")":"")+(data.detail?.msg?": "+data.detail.msg:""));
+  fastMossProducts=data.products||[];
+  status.textContent="Ditemui "+fastMossProducts.length+" daripada "+(data.total||0)+" rekod · "+region+" · "+date;
+  if(!fastMossProducts.length){box.innerHTML='<div class="empty">Tiada produk dipulangkan untuk tarikh dan pasaran ini.</div>';return}
+  box.innerHTML=fastMossProducts.map((p,n)=>'<div class="card"><div class="product"><img src="'+safeText(p.cover||"")+'" onerror="this.style.display=\'none\'" alt=""><div><div class="name">'+safeText(p.title||"Produk tanpa nama")+'</div><div class="meta">TikTok Shop · '+safeText(p.region||region)+'</div><div class="price">'+safeText(p.real_price||"Harga tiada")+'</div><div class="commission">Terjual: '+Number(p.units_sold||0).toLocaleString()+' · Growth: '+safeText(p.growth_rate??"—")+'</div><div class="meta">GMV: '+safeText(p.gmv??"—")+' · Komisen: '+safeText(p.commission_rate??"—")+'</div><button class="primary" onclick="saveFastMossProduct('+n+')" style="padding:9px;margin-top:8px">＋ Simpan ke Product Hunter</button></div></div></div>').join("");
+ }catch(e){status.textContent="Gagal: "+e.message;box.innerHTML='<div class="demo">Semak API key, baki kredit, tarikh dan akses endpoint FastMoss. Ralat: '+safeText(e.message)+'</div>'}
+ finally{btn.disabled=false;btn.textContent="🔎 Cari Produk Trending"}
+}
+async function saveFastMossProduct(index){
+ const p=fastMossProducts[index];if(!p)return;
+ const price=Number(String(p.real_price||"").replace(/[^0-9.]/g,""));
+ const payload={name:p.title||"FastMoss product "+(p.product_id||""),category:p.category?.l1?.name||"TikTok Shop",price:Number.isFinite(price)?price:null,commission_rate:p.commission_rate==null?null:Number(p.commission_rate),sold_count:p.units_sold==null?null:Number(p.units_sold),image_url:p.cover||"",product_url:"https://www.tiktok.com/shop/pdp/"+encodeURIComponent(p.product_id||""),notes:"Source: FastMoss · Region: "+(p.region||"MY")+" · GMV: "+(p.gmv??"—")+" · Growth: "+(p.growth_rate??"—")+" · Product ID: "+(p.product_id||"")};
+ try{const res=await fetch(API_BASE+"/api/products",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});const data=await res.json();if(!res.ok||!data.ok)throw new Error(data.error||"Save failed");toast("Produk FastMoss disimpan.");await loadProducts()}catch(e){toast("Gagal simpan: "+e.message)}
+}
 async function loadProducts(){
  const status=document.getElementById('apiStatus');
  try{
@@ -141,7 +180,7 @@ async function importCSV(){
    try{const res=await fetch(API_BASE+'/api/products',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const data=await res.json();if(res.ok&&data.ok)added++;else errors++}catch(e){errors++}
   }
   status.textContent='Selesai: '+added+' ditambah, '+skipped+' dilangkau, '+errors+' gagal.';
-  toast('Import selesai: '+added+' produk');await refreshCampaignAnalytics();\nrenderShopeeLinks();\nrefreshLinkProductOptions();\nloadProducts();
+  toast('Import selesai: '+added+' produk');await refreshCampaignAnalytics();\nrenderShopeeLinks();\nrefreshLinkProductOptions();\ninitFastMossDate();renderShopeeLinks();refreshCampaignAnalytics();loadProducts();
  }catch(e){status.textContent='Ralat: '+e.message;toast('Import gagal: '+e.message)}
 }
 async function addProduct(){
