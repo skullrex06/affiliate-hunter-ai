@@ -16,6 +16,29 @@ export default {
         await env.DB.prepare("SELECT 1").first();
         return json({ok:true,service:"Affiliate Hunter AI API",database:"connected"});
       }
+      if (url.pathname === "/api/fastmoss/products" && request.method === "POST") {
+        if (!env.FASTMOSS_API_KEY) return json({ok:false,error:"FastMoss API secret FASTMOSS_API_KEY is not configured"},503);
+        const body = await request.json().catch(()=>({}));
+        const region = String(body.region || "MY").toUpperCase();
+        if (!["MY","ID","SG","TH","PH","VN","US","GB"].includes(region)) return json({ok:false,error:"Unsupported region"},400);
+        const dateValue = String(body.date || "");
+        if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(dateValue)) return json({ok:false,error:"Date must use YYYY-MM-DD"},400);
+        const page = Math.min(Math.max(Number(body.page)||1,1),5);
+        const pagesize = Math.min(Math.max(Number(body.pagesize)||20,1),50);
+        const upstream = await fetch("https://openapi.fastmoss.com/product/v1/rank/topSelling", {
+          method:"POST",
+          headers:{"Content-Type":"application/json","Authorization":"Bearer "+env.FASTMOSS_API_KEY},
+          body:JSON.stringify({
+            filter:{region,date_info:{type:"day",value:dateValue}},
+            orderby:[{field:"units_sold",order:"desc"}],
+            page,pagesize
+          })
+        });
+        const raw = await upstream.json().catch(()=>({}));
+        if (!upstream.ok) return json({ok:false,error:"FastMoss request failed",upstream_status:upstream.status,detail:raw},502);
+        if (raw.code !== 0) return json({ok:false,error:"FastMoss returned an API error",detail:raw},502);
+        return json({ok:true,source:"FastMoss",region,date:dateValue,total:raw.data?.total||0,products:raw.data?.list||[]});
+      }
       if (url.pathname === "/api/products" && request.method === "GET") {
         const q=(url.searchParams.get("q")||"").trim();
         const category=(url.searchParams.get("category")||"").trim();
