@@ -45,7 +45,7 @@ nav button{background:none;border:0;color:inherit;font-size:10px;display:grid;ga
 <div class="section-head"><h3>Product Hunter</h3><span class="muted">Data daripada database anda</span></div>
 <div class="search"><input id="q" placeholder="Cari produk..." aria-label="Cari produk"><button onclick="render()">Cari</button></div>
 <div class="chips"><button class="chip active" data-cat="Semua">Semua</button><button class="chip" data-cat="Home & Living">Home & Living</button><button class="chip" data-cat="Kitchen">Kitchen</button><button class="chip" data-cat="Elektronik">Elektronik</button><button class="chip" data-cat="Automotif">Automotif</button></div>
-<div class="demo"><b>Nota:</b> Produk yang ditambah disimpan dalam Cloudflare D1. Harga, rating, jualan dan komisen perlu disahkan daripada sumber Shopee/affiliate yang dibenarkan; aplikasi belum mengambil data Shopee secara automatik.</div>
+<div class="demo"><b>Skor peluang (anggaran):</b> Ranking dikira daripada rating (30%), jumlah terjual (35%), komisen (25%) dan kelengkapan data (10%). Skor bukan jaminan jualan. Data perlu disahkan daripada sumber Shopee/affiliate yang dibenarkan; aplikasi belum mengambil data Shopee secara automatik.</div><div class="section-head"><h3>Susunan</h3><select id="sortBy" onchange="render()" style="padding:9px;border:1px solid var(--line);border-radius:10px;background:white"><option value="score">Skor peluang tertinggi</option><option value="sold">Jualan tertinggi</option><option value="commission">Komisen tertinggi</option><option value="priceLow">Harga terendah</option><option value="newest">Terbaru</option></select></div>
 <div id="list"><div class="empty">Memuatkan produk...</div></div>
 </main>
 <nav><button class="active"><strong>⌂</strong>Home</button><button><strong>⬡</strong>Produk</button><button><strong>▶</strong>Prompt</button><button><strong>↗</strong>Promosi</button><button><strong>▥</strong>Statistik</button></nav>
@@ -83,11 +83,28 @@ async function deleteProduct(id){
 async function copyPrompt(id){let p=products.find(x=>x.id===id);try{await navigator.clipboard.writeText(promptFor(p));toast('Prompt disalin!')}catch(e){toast('Clipboard tidak tersedia pada browser ini.')}}
 function downloadImage(id){let p=products.find(x=>x.id===id);if(!p.image_url){toast('Produk ini belum ada URL gambar.');return}window.open(p.image_url,'_blank','noopener');toast('Imej dibuka. Simpan melalui browser jika tersedia.')}
 function openSearch(id){let p=products.find(x=>x.id===id);let query=p.name;window.open(p.product_url||('https://shopee.com.my/search?keyword='+encodeURIComponent(query)),'_blank','noopener')}
+function opportunity(p){
+ let score=0,known=0;
+ if(p.rating!=null&&Number.isFinite(Number(p.rating))){score+=(Math.max(0,Math.min(5,Number(p.rating)))/5)*30;known++}
+ if(p.sold_count!=null&&Number.isFinite(Number(p.sold_count))){score+=(Math.log10(Math.max(0,Number(p.sold_count))+1)/Math.log10(10001))*35;known++}
+ if(p.commission_rate!=null&&Number.isFinite(Number(p.commission_rate))){score+=(Math.max(0,Math.min(20,Number(p.commission_rate)))/20)*25;known++}
+ const completeness=[p.price,p.rating,p.sold_count,p.commission_rate].filter(v=>v!==null&&v!==undefined&&v!=="").length;
+ score+=(completeness/4)*10;
+ return {score:Math.round(Math.max(0,Math.min(100,score))),completeness};
+}
 function render(){
  const q=(document.getElementById('q').value||'').toLowerCase();
- const rows=products.filter(p=>(category==='Semua'||p.category===category||(category==='Home & Living'&&p.category==='Kitchen'))&&((p.name||'').toLowerCase().includes(q)||(p.category||'').toLowerCase().includes(q)));
+ let rows=products.filter(p=>(category==='Semua'||p.category===category||(category==='Home & Living'&&p.category==='Kitchen'))&&((p.name||'').toLowerCase().includes(q)||(p.category||'').toLowerCase().includes(q)));
+ const sort=document.getElementById('sortBy')?.value||'score';
+ rows.sort((a,b)=>{
+  if(sort==='sold')return (Number(b.sold_count)||0)-(Number(a.sold_count)||0);
+  if(sort==='commission')return (Number(b.commission_rate)||0)-(Number(a.commission_rate)||0);
+  if(sort==='priceLow')return (Number(a.price)||Infinity)-(Number(b.price)||Infinity);
+  if(sort==='newest')return String(b.created_at||'').localeCompare(String(a.created_at||''));
+  return opportunity(b).score-opportunity(a).score;
+ });
  document.getElementById('total').textContent=products.length;document.getElementById('prompts').textContent=products.length;
- document.getElementById('list').innerHTML=rows.length?rows.map(p=>'<article class="card"><div class="product"><img src="'+(p.image_url||'https://placehold.co/300x300?text=No+Image')+'" alt="Gambar '+p.name+'" onerror="this.src=\'https://placehold.co/300x300?text=No+Image\'"><div><div class="name">'+p.name+'</div><div class="meta">'+(p.category||'Other')+' · ID '+p.id+'</div><div class="price">'+(p.price==null?'Harga belum diisi':'RM '+Number(p.price).toFixed(2))+'</div><span class="commission">'+(p.commission_rate==null?'Komisen belum diisi':Number(p.commission_rate)+'% komisen')+'</span><div class="meta">Rating: '+(p.rating??'—')+' · Terjual: '+(p.sold_count??'—')+'</div></div></div><div class="actions"><button onclick="downloadImage('+p.id+')">⬇ Gambar</button><button onclick="copyPrompt('+p.id+')">▤ Prompt</button><button onclick="openSearch('+p.id+')">↗ Shopee</button></div><button onclick="deleteProduct('+p.id+')" style="margin-top:8px;width:100%;padding:8px;border:1px solid #f2caca;background:#fff7f7;color:#b22;border-radius:9px">Padam produk</button></article>').join(''):'<div class="empty">Belum ada produk. Tambah produk di atas.</div>';
+ document.getElementById('list').innerHTML=rows.length?rows.map(p=>'<article class="card"><div class="product"><img src="'+(p.image_url||'https://placehold.co/300x300?text=No+Image')+'" alt="Gambar '+p.name+'" onerror="this.src=\'https://placehold.co/300x300?text=No+Image\'"><div><div class="name">'+p.name+' <span class="score">'+opportunity(p).score+'/100</span></div><div class="meta">'+(p.category||'Other')+' · ID '+p.id+' · Data '+opportunity(p).completeness+'/4</div><div class="price">'+(p.price==null?'Harga belum diisi':'RM '+Number(p.price).toFixed(2))+'</div><span class="commission">'+(p.commission_rate==null?'Komisen belum diisi':Number(p.commission_rate)+'% komisen')+'</span><div class="meta">Rating: '+(p.rating??'—')+' · Terjual: '+(p.sold_count??'—')+'</div></div></div><div class="actions"><button onclick="downloadImage('+p.id+')">⬇ Gambar</button><button onclick="copyPrompt('+p.id+')">▤ Prompt</button><button onclick="openSearch('+p.id+')">↗ Shopee</button></div><button onclick="deleteProduct('+p.id+')" style="margin-top:8px;width:100%;padding:8px;border:1px solid #f2caca;background:#fff7f7;color:#b22;border-radius:9px">Padam produk</button></article>').join(''):'<div class="empty">Belum ada produk. Tambah produk di atas.</div>';
 }
 document.querySelectorAll('.chip').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('.chip').forEach(x=>x.classList.remove('active'));b.classList.add('active');category=b.dataset.cat;render()}));
 loadProducts();
