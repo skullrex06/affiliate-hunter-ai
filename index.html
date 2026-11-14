@@ -180,7 +180,10 @@ async function importCSV(){
    try{const res=await fetch(API_BASE+'/api/products',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const data=await res.json();if(res.ok&&data.ok)added++;else errors++}catch(e){errors++}
   }
   status.textContent='Selesai: '+added+' ditambah, '+skipped+' dilangkau, '+errors+' gagal.';
-  toast('Import selesai: '+added+' produk');await refreshCampaignAnalytics();\nrenderShopeeLinks();\nrefreshLinkProductOptions();\ninitFastMossDate();renderShopeeLinks();refreshCampaignAnalytics();loadProducts();
+  toast('Import selesai: '+added+' produk');await refreshCampaignAnalytics();
+renderShopeeLinks();
+refreshLinkProductOptions();
+initFastMossDate();renderShopeeLinks();refreshCampaignAnalytics();loadProducts();
  }catch(e){status.textContent='Ralat: '+e.message;toast('Import gagal: '+e.message)}
 }
 async function addProduct(){
@@ -221,7 +224,8 @@ function saveShopeeLink(){
  const name=val('slName'),link=val('slLink');
  if(!name||!link){toast('Nama produk dan Shopee short link wajib diisi.');return}
  let u;try{u=new URL(link);if(!['https:','http:'].includes(u.protocol))throw new Error()}catch(e){toast('Format URL tidak sah.');return}
- const selectedProductId=document.getElementById("slProduct").value;\n const record={id:Date.now(),product_id:selectedProductId?Number(selectedProductId):null,name,price:val('slPrice')===''?null:Number(val('slPrice')),commission_rate:val('slCommission')===''?null:Number(val('slCommission')),image_url:val('slImage'),affiliate_url:link,sub_ids:[1,2,3,4,5].map(n=>val('slSub'+n)),created_at:new Date().toISOString()};
+ const selectedProductId=document.getElementById("slProduct").value;
+ const record={id:Date.now(),product_id:selectedProductId?Number(selectedProductId):null,name,price:val('slPrice')===''?null:Number(val('slPrice')),commission_rate:val('slCommission')===''?null:Number(val('slCommission')),image_url:val('slImage'),affiliate_url:link,sub_ids:[1,2,3,4,5].map(n=>val('slSub'+n)),created_at:new Date().toISOString()};
  shopeeLinks.unshift(record);
  try{localStorage.setItem('ah_shopee_links',JSON.stringify(shopeeLinks))}catch(e){shopeeLinks.shift();toast('Storan browser penuh. Eksport backup atau kosongkan ruang.');return}
  ['slName','slPrice','slCommission','slImage','slLink','slSub1','slSub2','slSub3','slSub4','slSub5'].forEach(id=>document.getElementById(id).value='');
@@ -333,7 +337,8 @@ function makeContentCalendar(){
 function togglePlan(key,done){if(done)contentPlan[key]=true;else delete contentPlan[key];localStorage.setItem('ah_content_plan',JSON.stringify(contentPlan));}
 function resetContentPlan(){if(!confirm('Reset semua tanda selesai dalam content calendar?'))return;contentPlan={};localStorage.setItem('ah_content_plan','{}');makeContentCalendar();toast('Jadual ditetapkan semula.')}
 function render(){
- makeContentCalendar();\n analyzeTrends();
+ makeContentCalendar();
+ analyzeTrends();
  const q=(document.getElementById('q').value||'').toLowerCase();
  let rows=products.filter(p=>(category==='Semua'||p.category===category||(category==='Home & Living'&&p.category==='Kitchen'))&&((p.name||'').toLowerCase().includes(q)||(p.category||'').toLowerCase().includes(q)));
  const sort=document.getElementById('sortBy')?.value||'score';
