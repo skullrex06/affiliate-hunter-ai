@@ -5,4 +5,4 @@ compatibility_date = "2026-11-14"
 [[d1_databases]]
 binding = "DB"
 database_name = "affiliate-hunter-db"
-database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+database_id = "ba3b1440-53c0-49ea-8362-938be1c38535"
