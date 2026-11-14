@@ -77,7 +77,7 @@ nav button{background:none;border:0;color:inherit;font-size:10px;display:grid;ga
  <button class="primary" onclick="saveShopeeLink()" style="width:100%;padding:12px;margin-top:10px">＋ Simpan Affiliate Link</button>
  <div class="meta" style="margin-top:7px">Link disimpan pada browser/peranti ini. Dapatkan short link daripada Shopee; aplikasi tidak menjana link Shopee sendiri.</div>
 </div>
-<div id="shopeeLinksList"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0 12px"><button class="chip" onclick="exportShopeeLinks()" style="padding:11px">⬇ Backup Link JSON</button><button class="chip" onclick="document.getElementById('shopeeLinkImport').click()" style="padding:11px">⬆ Import Backup</button></div><input id="shopeeLinkImport" type="file" accept=".json,application/json" onchange="importShopeeLinks()" hidden><div id="shopeeLinksList"></div>
 <div class="section-head"><h3>Product Hunter</h3><span class="muted">Data daripada database anda</span></div>
 <div class="search"><input id="q" placeholder="Cari produk..." aria-label="Cari produk"><button onclick="render()">Cari</button></div>
 <div class="chips"><button class="chip active" data-cat="Semua">Semua</button><button class="chip" data-cat="Home & Living">Home & Living</button><button class="chip" data-cat="Kitchen">Kitchen</button><button class="chip" data-cat="Elektronik">Elektronik</button><button class="chip" data-cat="Automotif">Automotif</button></div>
@@ -187,6 +187,23 @@ function saveShopeeLink(){
  try{localStorage.setItem('ah_shopee_links',JSON.stringify(shopeeLinks))}catch(e){shopeeLinks.shift();toast('Storan browser penuh. Eksport backup atau kosongkan ruang.');return}
  ['slName','slPrice','slCommission','slImage','slLink','slSub1','slSub2','slSub3','slSub4','slSub5'].forEach(id=>document.getElementById(id).value='');
  renderShopeeLinks();toast('Affiliate link berjaya disimpan pada peranti ini.');
+}
+function exportShopeeLinks(){
+ const data={app:'Affiliate Hunter AI',type:'shopee-affiliate-links',version:1,exported_at:new Date().toISOString(),links:shopeeLinks};
+ const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');
+ a.href=url;a.download='affiliate-hunter-shopee-links.json';a.click();URL.revokeObjectURL(url);toast('Backup link dimuat turun.');
+}
+async function importShopeeLinks(){
+ const input=document.getElementById('shopeeLinkImport'),file=input.files&&input.files[0];if(!file)return;
+ try{
+  const data=JSON.parse(await file.text()),items=data.links;
+  if(!Array.isArray(items))throw new Error('Fail backup tidak mempunyai senarai links.');
+  if(!confirm('Import '+items.length+' rekod? Rekod sedia ada dengan ID sama akan digantikan.'))return;
+  const map=new Map(shopeeLinks.map(x=>[String(x.id),x]));
+  items.forEach(x=>{if(x&&x.id&&x.name&&x.affiliate_url)map.set(String(x.id),x)});
+  shopeeLinks=Array.from(map.values());
+  localStorage.setItem('ah_shopee_links',JSON.stringify(shopeeLinks));renderShopeeLinks();toast('Backup berjaya diimport.');
+ }catch(e){toast('Import gagal: '+e.message)}finally{input.value=''}
 }
 function renderShopeeLinks(){
  const el=document.getElementById('shopeeLinksList');if(!el)return;
