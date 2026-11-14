@@ -55,6 +55,8 @@ nav button{background:none;border:0;color:inherit;font-size:10px;display:grid;ga
 </div>
 <div class="section-head"><h3>Campaign Analytics</h3><span class="muted">Prestasi semua kempen</span></div>
 <div class="card" id="campaignAnalytics"><div class="stats" style="margin:0"><div class="stat"><span>Total views</span><b id="caViews">0</b></div><div class="stat"><span>Total clicks</span><b id="caClicks">0</b></div><div class="stat"><span>Total orders</span><b id="caOrders">0</b></div><div class="stat"><span>Komisen direkod</span><b id="caCommission">RM 0.00</b></div></div><div class="meta" id="caRates" style="margin-top:10px">CTR: 0.00% · Conversion: 0.00%</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px"><button class="primary" onclick="exportCampaigns()" style="padding:11px">⬇ Backup JSON</button><button class="chip" onclick="document.getElementById('campaignImportFile').click()">⬆ Import Backup</button></div><input id="campaignImportFile" type="file" accept=".json,application/json" onchange="importCampaigns()" hidden><div class="meta" style="margin-top:8px">Data kempen disimpan dalam browser/peranti ini. Backup JSON untuk pindahkan ke peranti lain.</div></div>
+<div class="section-head"><h3>AI Content Calendar</h3><span class="muted">Rancangan 7 hari</span></div>
+<div class="card" id="contentCalendar"><div class="meta">Menjana jadual kandungan...</div></div>
 <div class="section-head"><h3>Product Hunter</h3><span class="muted">Data daripada database anda</span></div>
 <div class="search"><input id="q" placeholder="Cari produk..." aria-label="Cari produk"><button onclick="render()">Cari</button></div>
 <div class="chips"><button class="chip active" data-cat="Semua">Semua</button><button class="chip" data-cat="Home & Living">Home & Living</button><button class="chip" data-cat="Kitchen">Kitchen</button><button class="chip" data-cat="Elektronik">Elektronik</button><button class="chip" data-cat="Automotif">Automotif</button></div>
@@ -213,8 +215,25 @@ function analyzeTrends(){
  const topHtml=top.map((p,i)=>'<div class="meta" style="padding:4px 0">'+(i+1)+'. '+p.name+' — '+p.opp.score+'/100</div>').join('');
  panel.innerHTML='<div style="display:grid;grid-template-columns:1fr 1fr;gap:9px"><div style="background:#f5f1ff;border-radius:12px;padding:11px"><div class="meta">Kategori utama</div><b>'+best.name+'</b><div class="meta">Purata skor '+best.avg+'/100</div></div><div style="background:#fff6e9;border-radius:12px;padding:11px"><div class="meta">Data belum lengkap</div><b style="font-size:22px">'+missing+'/'+products.length+'</b><div class="meta">Produk perlukan semakan</div></div></div><h4 style="margin:15px 0 5px">Ranking kategori</h4>'+categoryHtml+'<h4 style="margin:15px 0 5px">Produk untuk disemak dahulu</h4>'+topHtml+'<div class="demo" style="margin-top:12px;margin-bottom:0">Cadangan: semak harga, rating, jualan dan komisen produk teratas sebelum hasilkan video. Ini analisis heuristik berdasarkan rekod anda, bukan ramalan atau data trend live Shopee.</div>';
 }
+let contentPlan={};
+try{contentPlan=JSON.parse(localStorage.getItem('ah_content_plan')||'{}')||{}}catch(e){contentPlan={}}
+function makeContentCalendar(){
+ const panel=document.getElementById('contentCalendar');if(!panel)return;
+ if(!products.length){panel.innerHTML='<div class="meta">Simpan produk dahulu untuk menjana jadual kandungan.</div>';return}
+ const topics=['Demo cara guna','3 sebab produk ini berguna','Masalah dan penyelesaian','Close-up ciri produk','Review berdasarkan fakta','Perbandingan ciri yang boleh disahkan','Reminder semak harga/promosi'];
+ const today=new Date();today.setHours(12,0,0,0);
+ const items=[];
+ for(let i=0;i<7;i++){
+  const day=new Date(today);day.setDate(today.getDate()+i);
+  const p=products[i%products.length],key=day.toISOString().slice(0,10)+'_'+p.id;
+  items.push({day,key,p,topic:topics[i],done:!!contentPlan[key]});
+ }
+ panel.innerHTML='<div class="meta" style="margin-bottom:9px">Jadual cadangan berdasarkan produk tersimpan. Bukan jadual posting automatik.</div>'+items.map(x=>'<label style="display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--line)"><input type="checkbox" '+(x.done?'checked':'')+' onchange="togglePlan(\''+x.key+'\',this.checked)" style="margin-top:4px"><span style="flex:1"><b>'+x.day.toLocaleDateString('ms-MY',{weekday:'short',day:'numeric',month:'short'})+' — '+x.p.name+'</b><div class="meta">'+x.topic+'</div><div class="meta">Format: video pendek 9:16 · CTA: semak pautan produk</div></span></label>').join('')+'<button class="chip" onclick="resetContentPlan()" style="width:100%;margin-top:10px">Reset tanda selesai</button>';
+}
+function togglePlan(key,done){if(done)contentPlan[key]=true;else delete contentPlan[key];localStorage.setItem('ah_content_plan',JSON.stringify(contentPlan));}
+function resetContentPlan(){if(!confirm('Reset semua tanda selesai dalam content calendar?'))return;contentPlan={};localStorage.setItem('ah_content_plan','{}');makeContentCalendar();toast('Jadual ditetapkan semula.')}
 function render(){
- analyzeTrends();
+ makeContentCalendar();\n analyzeTrends();
  const q=(document.getElementById('q').value||'').toLowerCase();
  let rows=products.filter(p=>(category==='Semua'||p.category===category||(category==='Home & Living'&&p.category==='Kitchen'))&&((p.name||'').toLowerCase().includes(q)||(p.category||'').toLowerCase().includes(q)));
  const sort=document.getElementById('sortBy')?.value||'score';
