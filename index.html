@@ -59,7 +59,7 @@ nav button{background:none;border:0;color:inherit;font-size:10px;display:grid;ga
 <div class="card" id="contentCalendar"><div class="meta">Menjana jadual kandungan...</div></div>
 <div class="section-head"><h3>Shopee Affiliate Link Manager</h3><span class="muted">Simpan link & Sub_ID</span></div>
 <div class="card">
- <input id="slName" placeholder="Nama produk *" style="width:100%;padding:11px;border:1px solid var(--line);border-radius:9px;margin-bottom:8px">
+ <select id="slProduct" style="width:100%;padding:11px;border:1px solid var(--line);border-radius:9px;margin-bottom:8px;background:white"><option value="">Pautkan dengan produk dalam Product Hunter (pilihan)</option></select><input id="slName" placeholder="Nama produk *" style="width:100%;padding:11px;border:1px solid var(--line);border-radius:9px;margin-bottom:8px">
  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
   <input id="slPrice" type="number" step="0.01" placeholder="Harga RM" style="min-width:0;padding:11px;border:1px solid var(--line);border-radius:9px">
   <input id="slCommission" type="number" step="0.01" placeholder="Komisen %" style="min-width:0;padding:11px;border:1px solid var(--line);border-radius:9px">
@@ -97,7 +97,7 @@ async function loadProducts(){
   const res=await fetch(API_BASE+'/api/products?limit=500');
   if(!res.ok) throw new Error('HTTP '+res.status);
   const data=await res.json(); if(!data.ok) throw new Error(data.error||'API error');
-  products=data.products||[];status.textContent='● API connected';status.style.color='var(--green)';render();
+  products=data.products||[];refreshLinkProductOptions();status.textContent='● API connected';status.style.color='var(--green)';render();
  }catch(e){status.textContent='● API gagal';status.style.color='#c33';document.getElementById('list').innerHTML='<div class="empty">Tidak dapat memuatkan database. Semak Worker API.</div>';toast('Gagal sambung API: '+e.message)}
 }
 function parseCSV(text){
@@ -141,7 +141,7 @@ async function importCSV(){
    try{const res=await fetch(API_BASE+'/api/products',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const data=await res.json();if(res.ok&&data.ok)added++;else errors++}catch(e){errors++}
   }
   status.textContent='Selesai: '+added+' ditambah, '+skipped+' dilangkau, '+errors+' gagal.';
-  toast('Import selesai: '+added+' produk');await refreshCampaignAnalytics();\nrenderShopeeLinks();\nloadProducts();
+  toast('Import selesai: '+added+' produk');await refreshCampaignAnalytics();\nrenderShopeeLinks();\nrefreshLinkProductOptions();\nloadProducts();
  }catch(e){status.textContent='Ralat: '+e.message;toast('Import gagal: '+e.message)}
 }
 async function addProduct(){
@@ -175,12 +175,12 @@ async function copyMarketingKit(id){
 let shopeeLinks=[];
 try{shopeeLinks=JSON.parse(localStorage.getItem('ah_shopee_links')||'[]');if(!Array.isArray(shopeeLinks))shopeeLinks=[]}catch(e){shopeeLinks=[]}
 function safeText(v){return String(v??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]))}
-function saveShopeeLink(){
+function refreshLinkProductOptions(){const sel=document.getElementById("slProduct");if(!sel)return;const old=sel.value;sel.innerHTML='<option value="">Pautkan dengan produk dalam Product Hunter (pilihan)</option>'+products.map(p=>'<option value="'+p.id+'">'+safeText(p.name)+'</option>').join("");if(old&&products.some(p=>String(p.id)===old))sel.value=old;}\nfunction openLinkedCampaign(linkId){const item=shopeeLinks.find(x=>x.id===linkId);if(!item||!item.product_id){toast("Link ini belum dipautkan dengan produk.");return}showCampaign(item.product_id);setTimeout(()=>{const target=document.getElementById("campaign-"+item.product_id);if(target)target.scrollIntoView({behavior:"smooth",block:"center"})},100)}\nfunction saveShopeeLink(){
  const val=id=>document.getElementById(id).value.trim();
  const name=val('slName'),link=val('slLink');
  if(!name||!link){toast('Nama produk dan Shopee short link wajib diisi.');return}
  let u;try{u=new URL(link);if(!['https:','http:'].includes(u.protocol))throw new Error()}catch(e){toast('Format URL tidak sah.');return}
- const record={id:Date.now(),name,price:val('slPrice')===''?null:Number(val('slPrice')),commission_rate:val('slCommission')===''?null:Number(val('slCommission')),image_url:val('slImage'),affiliate_url:link,sub_ids:[1,2,3,4,5].map(n=>val('slSub'+n)),created_at:new Date().toISOString()};
+ const selectedProductId=document.getElementById("slProduct").value;\n const record={id:Date.now(),product_id:selectedProductId?Number(selectedProductId):null,name,price:val('slPrice')===''?null:Number(val('slPrice')),commission_rate:val('slCommission')===''?null:Number(val('slCommission')),image_url:val('slImage'),affiliate_url:link,sub_ids:[1,2,3,4,5].map(n=>val('slSub'+n)),created_at:new Date().toISOString()};
  shopeeLinks.unshift(record);
  try{localStorage.setItem('ah_shopee_links',JSON.stringify(shopeeLinks))}catch(e){shopeeLinks.shift();toast('Storan browser penuh. Eksport backup atau kosongkan ruang.');return}
  ['slName','slPrice','slCommission','slImage','slLink','slSub1','slSub2','slSub3','slSub4','slSub5'].forEach(id=>document.getElementById(id).value='');
@@ -189,7 +189,7 @@ function saveShopeeLink(){
 function renderShopeeLinks(){
  const el=document.getElementById('shopeeLinksList');if(!el)return;
  if(!shopeeLinks.length){el.innerHTML='<div class="empty">Belum ada affiliate link disimpan.</div>';return}
- el.innerHTML=shopeeLinks.map(x=>'<div class="card"><div class="name">'+safeText(x.name)+'</div><div class="meta">'+(x.price==null?'Harga —':'RM '+Number(x.price).toFixed(2))+' · '+(x.commission_rate==null?'Komisen —':safeText(x.commission_rate)+'% komisen')+'</div>'+(x.image_url?'<img src="'+safeText(x.image_url)+'" alt="" style="width:64px;height:64px;object-fit:cover;border-radius:8px;margin-top:8px">':'')+'<input readonly value="'+safeText(x.affiliate_url)+'" style="width:100%;padding:9px;border:1px solid var(--line);border-radius:8px;margin-top:8px"><div class="meta" style="margin-top:7px">Sub_ID: '+x.sub_ids.map((v,i)=>v?safeText(''+(i+1)+'='+v):'').filter(Boolean).join(' · ')+'</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:9px"><button class="chip" onclick="copyShopeeLink('+x.id+')">Salin link</button><button class="chip" onclick="deleteShopeeLink('+x.id+')">Padam</button></div></div>').join('');
+ el.innerHTML=shopeeLinks.map(x=>'<div class="card"><div class="name">'+safeText(x.name)+'</div><div class="meta">'+(x.price==null?'Harga —':'RM '+Number(x.price).toFixed(2))+' · '+(x.commission_rate==null?'Komisen —':safeText(x.commission_rate)+'% komisen')+'</div>'+(x.image_url?'<img src="'+safeText(x.image_url)+'" alt="" style="width:64px;height:64px;object-fit:cover;border-radius:8px;margin-top:8px">':'')+'<input readonly value="'+safeText(x.affiliate_url)+'" style="width:100%;padding:9px;border:1px solid var(--line);border-radius:8px;margin-top:8px"><div class="meta" style="margin-top:7px">'+(x.product_id?'Dipautkan ke Product Hunter #'+x.product_id:'Belum dipautkan ke Product Hunter')+'</div><div class="meta" style="margin-top:7px">Sub_ID: '+x.sub_ids.map((v,i)=>v?safeText(''+(i+1)+'='+v):'').filter(Boolean).join(' · ')+'</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:9px"><button class="chip" onclick="copyShopeeLink('+x.id+')">Salin link</button>'+(x.product_id?'<button class="chip" onclick="openLinkedCampaign('+x.id+')">Campaign Tracker</button>':'<button class="chip" onclick="deleteShopeeLink('+x.id+')">Padam</button>')+'</div>'+(x.product_id?'<button class="chip" style="width:100%;margin-top:7px" onclick="deleteShopeeLink('+x.id+')">Padam link</button>':'')+'</div>').join('');
 }
 async function copyShopeeLink(id){const x=shopeeLinks.find(v=>v.id===id);if(!x)return;try{await navigator.clipboard.writeText(x.affiliate_url);toast('Link disalin.')}catch(e){toast('Clipboard tidak tersedia. Tekan dan salin link dalam kotak.')}}
 function deleteShopeeLink(id){if(!confirm('Padam rekod link ini?'))return;shopeeLinks=shopeeLinks.filter(x=>x.id!==id);localStorage.setItem('ah_shopee_links',JSON.stringify(shopeeLinks));renderShopeeLinks();toast('Rekod dipadam.')}
