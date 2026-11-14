@@ -42,6 +42,13 @@ nav button{background:none;border:0;color:inherit;font-size:10px;display:grid;ga
   <input id="newLink" placeholder="URL produk Shopee (pilihan)" style="width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;margin-top:8px">
   <button class="primary" onclick="addProduct()" style="width:100%;padding:13px;margin-top:10px">＋ Simpan Produk</button>
 </div>
+<div class="section-head"><h3>Import Product Feed</h3><span class="muted">CSV daripada sumber dibenarkan</span></div>
+<div class="card">
+ <p class="meta" style="margin:0 0 9px">Muat naik CSV produk daripada Shopee Affiliate Product Feed atau fail data yang anda dibenarkan gunakan. Tiada scraping automatik.</p>
+ <input id="csvFile" type="file" accept=".csv,text/csv" style="width:100%;font-size:12px">
+ <button class="primary" onclick="importCSV()" style="width:100%;padding:12px;margin-top:10px">Import CSV ke database</button>
+ <div class="meta" id="importStatus" aria-live="polite"></div>
+</div>
 <div class="section-head"><h3>Product Hunter</h3><span class="muted">Data daripada database anda</span></div>
 <div class="search"><input id="q" placeholder="Cari produk..." aria-label="Cari produk"><button onclick="render()">Cari</button></div>
 <div class="chips"><button class="chip active" data-cat="Semua">Semua</button><button class="chip" data-cat="Home & Living">Home & Living</button><button class="chip" data-cat="Kitchen">Kitchen</button><button class="chip" data-cat="Elektronik">Elektronik</button><button class="chip" data-cat="Automotif">Automotif</button></div>
@@ -63,6 +70,50 @@ async function loadProducts(){
   const data=await res.json(); if(!data.ok) throw new Error(data.error||'API error');
   products=data.products||[];status.textContent='● API connected';status.style.color='var(--green)';render();
  }catch(e){status.textContent='● API gagal';status.style.color='#c33';document.getElementById('list').innerHTML='<div class="empty">Tidak dapat memuatkan database. Semak Worker API.</div>';toast('Gagal sambung API: '+e.message)}
+}
+function parseCSV(text){
+ const lines=[];let row=[],field='',quoted=false;
+ for(let i=0;i<text.length;i++){const c=text[i],n=text[i+1];
+  if(c==='"'&&quoted&&n==='"'){field+='"';i++}
+  else if(c==='"'){quoted=!quoted}
+  else if(c===','&&!quoted){row.push(field.trim());field=''}
+  else if((c==='\\n'||c==='\\r')&&!quoted){if(c==='\\r'&&n==='\\n')i++;row.push(field.trim());if(row.some(v=>v!==''))lines.push(row);row=[];field=''}
+  else field+=c;
+ }
+ row.push(field.trim());if(row.some(v=>v!==''))lines.push(row);
+ return lines;
+}
+function headerIndex(headers,names){return headers.findIndex(h=>names.includes(h.toLowerCase().replace(/[ _-]/g,'')))}
+async function importCSV(){
+ const input=document.getElementById('csvFile'),status=document.getElementById('importStatus');
+ const file=input.files&&input.files[0];if(!file){toast('Pilih fail CSV dahulu.');return}
+ status.textContent='Membaca fail...';
+ try{
+  const rows=parseCSV(await file.text());if(rows.length<2)throw new Error('CSV kosong atau tiada baris data');
+  const headers=rows[0].map(h=>h.toLowerCase().replace(/[ _-]/g,''));
+  const ix={
+   name:headerIndex(headers,['name','productname','itemname','title','product']),
+   category:headerIndex(headers,['category','productcategory']),
+   price:headerIndex(headers,['price','productprice','saleprice']),
+   commission:headerIndex(headers,['commission','commissionrate','commissionpercentage','rate']),
+   rating:headerIndex(headers,['rating','starrating']),
+   sold:headerIndex(headers,['sold','soldcount','historicalsold','sales']),
+   image:headerIndex(headers,['image','imageurl','productimage','image link']),
+   link:headerIndex(headers,['producturl','productlink','url','link']),
+   affiliate:headerIndex(headers,['affiliatelink','affiliateur l','trackinglink'])
+  };
+  if(ix.name<0)throw new Error('Kolum nama produk tidak dijumpai. Gunakan header: name atau product_name');
+  let added=0,skipped=0,errors=0;
+  for(const row of rows.slice(1)){
+   const get=i=>i<0?null:(row[i]??'').trim();
+   const name=get(ix.name);if(!name){skipped++;continue}
+   const num=i=>{const v=get(i);if(v==null||v==='')return null;const n=Number(v.replace(/[^0-9.\\-]/g,''));return Number.isFinite(n)?n:null};
+   const body={name,category:get(ix.category)||'Other',price:num(ix.price),commission_rate:num(ix.commission),rating:num(ix.rating),sold_count:num(ix.sold),image_url:get(ix.image),product_url:get(ix.link),affiliate_url:get(ix.affiliate)};
+   try{const res=await fetch(API_BASE+'/api/products',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const data=await res.json();if(res.ok&&data.ok)added++;else errors++}catch(e){errors++}
+  }
+  status.textContent='Selesai: '+added+' ditambah, '+skipped+' dilangkau, '+errors+' gagal.';
+  toast('Import selesai: '+added+' produk');await loadProducts();
+ }catch(e){status.textContent='Ralat: '+e.message;toast('Import gagal: '+e.message)}
 }
 async function addProduct(){
  const name=document.getElementById('newName').value.trim();
