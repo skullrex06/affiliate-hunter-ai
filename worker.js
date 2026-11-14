@@ -68,6 +68,14 @@ export default {
         ).bind(name,fields.category,fields.price,fields.commission_rate,fields.rating,fields.sold_count,fields.image_url,fields.product_url,fields.affiliate_url,fields.notes).run();
         return json({ok:true,id:result.meta.last_row_id},201);
       }
+      if (url.pathname.startsWith("/api/products/") && request.method === "PUT") {
+        const id=Number(url.pathname.split("/").pop());
+        if(!Number.isInteger(id)||id<1) return json({ok:false,error:"Invalid product id"},400);
+        const body=await request.json();
+        const image=body.image_url?String(body.image_url).slice(0,2000):null;
+        const result=await env.DB.prepare("UPDATE products SET image_url=? WHERE id=?").bind(image,id).run();
+        return json({ok:true,changes:result.meta.changes||0});
+      }
       if (url.pathname.startsWith("/api/products/") && request.method === "DELETE") {
         const id=Number(url.pathname.split("/").pop());
         if(!Number.isInteger(id)||id<1) return json({ok:false,error:"Invalid product id"},400);
