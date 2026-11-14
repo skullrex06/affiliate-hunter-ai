@@ -2,18 +2,26 @@
 
 Mobile-first Shopee affiliate product research workspace.
 
+## Files
+- `index.html` — mobile dashboard prototype
+- `worker.js` — Cloudflare Workers API starter
+- `schema.sql` — Cloudflare D1 products table
+- `wrangler.toml` — Wrangler configuration template
+
 ## Current status
-- Phase 1: responsive mobile dashboard prototype
-- Demo product cards, category filters and search
-- Copy Google Flow reference-image prompt
-- Open Shopee search for a product keyword
-- Reference image action (demo assets only)
+- Mobile dashboard with demo product cards, search and category filters
+- Copy Google Flow prompt based on a product card
+- Open Shopee search by keyword
+- D1 API starter: health check, list products, add product, delete product
 
-## Important
-The current product cards and prices are illustrative demo data. This prototype is not yet connected to Shopee product feeds, affiliate commissions, image downloading, or Cloudflare D1/Workers. Do not treat demo scores or commission rates as real.
+## Important limitations
+Product cards are illustrative demo data. The app is not yet connected to Shopee product feeds or a verified affiliate API. Prices, sales, ratings, commission and scores must not be treated as live data. The image cards currently use sample image URLs; automatic authorized image downloading is not implemented yet.
 
-## Run
-Deploy this repository with GitHub Pages, or open index.html in a browser.
+## Cloudflare setup
+1. Create a D1 database named `affiliate-hunter-db`.
+2. Replace `REPLACE_WITH_YOUR_D1_DATABASE_ID` in `wrangler.toml` with the database ID.
+3. Run `npx wrangler d1 execute affiliate-hunter-db --remote --file=schema.sql`.
+4. Deploy the Worker with `npx wrangler deploy`.
+5. Test `https://YOUR-WORKER-DOMAIN/api/health`.
 
-## Next phase
-Connect a permitted product data source, store verified product metadata and affiliate URLs, and implement safe image downloading from authorized image URLs.
+Keep API credentials and private tokens in Cloudflare Worker secrets, never in `index.html` or GitHub.
