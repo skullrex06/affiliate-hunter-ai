@@ -101,51 +101,61 @@ async function loadProducts(){
  }catch(e){status.textContent='● API gagal';status.style.color='#c33';document.getElementById('list').innerHTML='<div class="empty">Tidak dapat memuatkan database. Semak Worker API.</div>';toast('Gagal sambung API: '+e.message)}
 }
 function parseCSV(text){
- const lines=[];let row=[],field='',quoted=false;
- for(let i=0;i<text.length;i++){const c=text[i],n=text[i+1];
+ const rows=[];let row=[],field="",quoted=false;
+ for(let i=0;i<text.length;i++){
+  const c=text[i],n=text[i+1];
   if(c==='"'&&quoted&&n==='"'){field+='"';i++}
   else if(c==='"'){quoted=!quoted}
-  else if(c===','&&!quoted){row.push(field.trim());field=''}
-  else if((c==='\\n'||c==='\\r')&&!quoted){if(c==='\\r'&&n==='\\n')i++;row.push(field.trim());if(row.some(v=>v!==''))lines.push(row);row=[];field=''}
+  else if(c===','&&!quoted){row.push(field.trim());field=""}
+  else if((c==="\n"||c==="\r")&&!quoted){if(c==="\r"&&n==="\n")i++;row.push(field.trim());if(row.some(v=>v!==""))rows.push(row);row=[];field=""}
   else field+=c;
  }
- row.push(field.trim());if(row.some(v=>v!==''))lines.push(row);
- return lines;
+ row.push(field.trim());if(row.some(v=>v!==""))rows.push(row);
+ return rows;
 }
-function headerIndex(headers,names){return headers.findIndex(h=>names.includes(h.toLowerCase().replace(/[ _-]/g,'')))}
+function headerIndex(headers,names){return headers.findIndex(h=>names.includes(h.toLowerCase().replace(/[ _-]/g,"")))}
+function parseShopeeSales(value){
+ const raw=String(value??"").trim().toLowerCase().replace(/,/g,"");
+ if(!raw)return {value:null,raw:""};
+ const match=raw.match(/^([0-9]*\.?[0-9]+)\s*(k|m)?\+?$/);
+ if(!match)return {value:null,raw:String(value)};
+ const factor=match[2]==="k"?1000:match[2]==="m"?1000000:1;
+ return {value:Math.round(Number(match[1])*factor),raw:String(value)};
+}
 async function importCSV(){
- const input=document.getElementById('csvFile'),status=document.getElementById('importStatus');
- const file=input.files&&input.files[0];if(!file){toast('Pilih fail CSV dahulu.');return}
- status.textContent='Membaca fail...';
+ const input=document.getElementById("csvFile"),status=document.getElementById("importStatus");
+ const file=input.files&&input.files[0];if(!file){toast("Pilih fail CSV dahulu.");return}
+ status.textContent="Membaca fail...";
  try{
-  const rows=parseCSV(await file.text());if(rows.length<2)throw new Error('CSV kosong atau tiada baris data');
-  const headers=rows[0].map(h=>h.toLowerCase().replace(/[ _-]/g,''));
+  const rows=parseCSV(await file.text());if(rows.length<2)throw new Error("CSV kosong atau tiada baris data");
+  const headers=rows[0].map(h=>h.toLowerCase().replace(/[ _-]/g,""));
   const ix={
-   name:headerIndex(headers,['name','productname','itemname','title','product']),
-   category:headerIndex(headers,['category','productcategory']),
-   price:headerIndex(headers,['price','productprice','saleprice']),
-   commission:headerIndex(headers,['commission','commissionrate','commissionpercentage','rate']),
-   rating:headerIndex(headers,['rating','starrating']),
-   sold:headerIndex(headers,['sold','soldcount','historicalsold','sales']),
-   image:headerIndex(headers,['image','imageurl','productimage','image link']),
-   link:headerIndex(headers,['producturl','productlink','url','link']),
-   affiliate:headerIndex(headers,['affiliatelink','affiliateur l','trackinglink'])
+   id:headerIndex(headers,["itemid","productid","id"]),
+   name:headerIndex(headers,["name","productname","itemname","title","product"]),
+   category:headerIndex(headers,["category","productcategory"]),
+   price:headerIndex(headers,["price","productprice","saleprice"]),
+   commissionRate:headerIndex(headers,["commissionrate","commissionpercentage","rate"]),
+   commissionAmount:headerIndex(headers,["commission","commissionamount"]),
+   rating:headerIndex(headers,["rating","starrating"]),
+   sold:headerIndex(headers,["sold","soldcount","historicalsold","sales"]),
+   image:headerIndex(headers,["image","imageurl","productimage"]),
+   link:headerIndex(headers,["producturl","productlink","url","link"]),
+   affiliate:headerIndex(headers,["off erlink".replace(/ /g,""),"off erurl".replace(/ /g,""),"off erlink".replace(/ /g,""),"offerlink","affiliatelink","trackinglink"])
   };
-  if(ix.name<0)throw new Error('Kolum nama produk tidak dijumpai. Gunakan header: name atau product_name');
+  if(ix.name<0)throw new Error("Kolum Item Name tidak dijumpai.");
   let added=0,skipped=0,errors=0;
   for(const row of rows.slice(1)){
-   const get=i=>i<0?null:(row[i]??'').trim();
+   const get=i=>i<0?null:(row[i]??"").trim();
    const name=get(ix.name);if(!name){skipped++;continue}
-   const num=i=>{const v=get(i);if(v==null||v==='')return null;const n=Number(v.replace(/[^0-9.\\-]/g,''));return Number.isFinite(n)?n:null};
-   const body={name,category:get(ix.category)||'Other',price:num(ix.price),commission_rate:num(ix.commission),rating:num(ix.rating),sold_count:num(ix.sold),image_url:get(ix.image),product_url:get(ix.link),affiliate_url:get(ix.affiliate)};
-   try{const res=await fetch(API_BASE+'/api/products',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const data=await res.json();if(res.ok&&data.ok)added++;else errors++}catch(e){errors++}
+   const num=i=>{const v=get(i);if(v==null||v==="")return null;const n=Number(v.replace(/[^0-9.\-]/g,""));return Number.isFinite(n)?n:null};
+   const sales=parseShopeeSales(get(ix.sold));
+   const notes=["Source: Shopee Affiliate Batch Product Links",get(ix.id)?"Item ID: "+get(ix.id):"",sales.raw?"Shopee Sales field: "+sales.raw:"",get(ix.commissionAmount)?"Commission amount shown: "+get(ix.commissionAmount):""].filter(Boolean).join(" | ");
+   const body={name,category:get(ix.category)||"Shopee Affiliate",price:num(ix.price),commission_rate:num(ix.commissionRate),sold_count:sales.value,rating:num(ix.rating),product_url:get(ix.link),affiliate_url:get(ix.affiliate),notes};
+   try{const res=await fetch(API_BASE+"/api/products",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});const data=await res.json();if(res.ok&&data.ok)added++;else errors++}catch(e){errors++}
   }
-  status.textContent='Selesai: '+added+' ditambah, '+skipped+' dilangkau, '+errors+' gagal.';
-  toast('Import selesai: '+added+' produk');await refreshCampaignAnalytics();
-renderShopeeLinks();
-refreshLinkProductOptions();
-renderShopeeLinks();refreshCampaignAnalytics();loadProducts();
- }catch(e){status.textContent='Ralat: '+e.message;toast('Import gagal: '+e.message)}
+  status.textContent="Selesai: "+added+" ditambah, "+skipped+" dilangkau, "+errors+" gagal.";
+  toast("Import selesai: "+added+" produk");await loadProducts();
+ }catch(e){status.textContent="Ralat: "+e.message;toast("Import gagal: "+e.message)}
 }
 async function addProduct(){
  const name=document.getElementById('newName').value.trim();
